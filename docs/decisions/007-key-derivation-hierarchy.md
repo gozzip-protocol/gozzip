@@ -1,0 +1,60 @@
+# 007 — Key Derivation Hierarchy
+
+## Status
+
+Accepted
+
+## Context
+
+Device delegation alone provides identity isolation but not key isolation. If all devices hold the root private key, a compromised device can:
+
+- Re-authorize itself by publishing a new kind 10050
+- Forge profile updates (kind 0) and follow list changes (kind 3)
+- Read all DMs (root key is the encryption target)
+- Undo its own revocation — it holds the key needed to re-add itself
+
+The root key on every device is a single point of failure.
+
+## Decision
+
+Move the root key to cold storage and derive purpose-specific keys:
+
+```
+Root key (cold storage — hardware wallet, air-gapped, or secure enclave)
+│
+├── DM key = KDF(root, "dm-decryption-" || rotation_epoch)
+│   └── On DM-capable devices only — decrypts DMs. Rotates every 90 days.
+│
+├── Governance key = KDF(root, "governance")
+│   └── On trusted devices only — signs kind 0 (profile), kind 3 (follows)
+│
+├── Device subkeys (independent per-device)
+│   └── Sign kind 1, 6, 7, 9, 14, 30023 — day-to-day events
+│
+└── Root key itself
+    └── Signs kind 10050 (delegation) only — add/revoke devices
+        Used rarely, from cold storage
+```
+
+Kind 10050 is extended with `dm_key`, `governance_key`, and `checkpoint_delegate` tags to publish derived key public keys. DMs encrypt to the `dm_key` pubkey instead of the root pubkey.
+
+## Rejected Alternative: Root Key on All Devices
+
+Share the root private key across all devices (the standard Nostr approach). Rejected because a single compromised device can re-authorize itself, forge profile/follow updates, read all DMs, and undo its own revocation. No way to limit blast radius.
+
+## Consequences
+
+**Positive:**
+- Compromised device (device key + DM key) can post and read DMs but CANNOT re-authorize itself, change follows, or forge profile
+- Root key exposure surface drops to rare delegation updates from cold storage
+- Governance key can be restricted to trusted devices (e.g., desktop only)
+- Checkpoint publishing can be delegated to any device without root key
+
+**Negative:**
+- Users must manage cold storage for the root key (hardware wallet, secure enclave)
+- DM senders must look up `dm_key` from kind 10050 instead of using root pubkey directly
+- More complex key management UX
+
+**Neutral:**
+- Existing Nostr keys still work as root keys — the hierarchy is additive
+- Nostr users migrating to Gozzip can adopt the hierarchy incrementally

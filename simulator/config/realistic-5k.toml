@@ -1,0 +1,101 @@
+# Realistic 5,000-node simulation profile
+# Designed for VPS runs (16 GB RAM recommended)
+#
+# Key rationale:
+#   BA m=50 → ~50 follows/node, but only ~20 pacts
+#   This means ~60-80% of reads require gossip/relay (not instant)
+#   Expected Tier 1 (Instant) ~20%, vs 95.8% in the dense 100-node graph
+
+[protocol]
+pacts_default = 20
+pacts_standby = 3
+pacts_popular = 40
+volume_tolerance = 0.30
+ttl = 3
+checkpoint_window_days = 30
+light_sync_depth = 50
+dedup_cache_size = 10000
+rate_limit_10055 = 10
+rate_limit_10057 = 50
+wot_forward_hops = 2
+read_cache_max_mb = 100
+challenge_freq_per_day = 1
+min_account_age_days = 7
+gossip_fanout = 8
+default_storage_capacity_mb = 1024
+storage_capacity_variance = 0.3
+activity_renegotiation_threshold = 0.5
+activity_check_interval_hours = 24
+
+[network]
+# Phase 1: desktop/web/extension focus (mobile is Phase 2)
+# Full = always-on desktop apps, servers
+# Light = browser extensions, web apps (active when browser is open)
+full_node_pct = 0.25
+light_node_pct = 0.75
+full_uptime = 0.95
+light_uptime = 0.60
+dau_pct = 0.50
+app_sessions = 10
+gossip_fallback = 0.02
+clustering = 0.25
+
+[events]
+note_bytes = 800
+reaction_bytes = 500
+repost_bytes = 600
+dm_bytes = 900
+longform_bytes = 5500
+gossip_req_bytes = 300
+challenge_bytes = 300
+data_offer_bytes = 200
+events_per_day = 25.0
+# activity_distribution = "uniform"   # or "power_law"
+# activity_skew = 1.2                 # Zipf exponent (only for power_law)
+
+[events.mix]
+note = 0.40
+reaction = 0.30
+repost = 0.15
+dm = 0.10
+longform = 0.05
+
+[graph]
+model = "barabasi-albert"
+nodes = 5000
+seed = 42
+ba_edges_per_node = 50
+
+ws_neighbors = 20
+ws_rewire_prob = 0.1
+
+[simulation]
+duration_days = 30
+tick_interval_secs = 60
+deterministic = false
+latency_ms_mean = 50.0
+latency_ms_stddev = 20.0
+
+[retrieval]
+reads_per_day = 50
+read_timeout_secs = 30.0
+relay_success_rate = 0.80
+relay_stagger_secs = 2.0
+feed_weight_inner_circle = 0.60
+feed_weight_orbit = 0.25
+feed_weight_horizon = 0.15
+orbit_cache_ttl_days = 14.0
+horizon_cache_ttl_days = 3.0
+relay_cache_ttl_days = 1.0
+
+[latency]
+cached_endpoint_base_ms = 60.0
+cached_endpoint_jitter_ms = 20.0
+gossip_per_hop_base_ms = 80.0
+gossip_per_hop_jitter_ms = 30.0
+relay_base_ms = 200.0
+relay_jitter_ms = 50.0
+
+[validation]
+pass_threshold_pct = 15.0
+warn_threshold_pct = 30.0

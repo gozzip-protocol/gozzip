@@ -1,0 +1,15 @@
+.worktrees/
+.idea/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AI
+CLAUDE.md
+.claude
+
+# Simulator
+simulator/results/
+simulator/target/
