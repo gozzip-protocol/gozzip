@@ -16,6 +16,7 @@
 \usepackage{listings}
 \usepackage{titlesec}
 \usepackage{parskip}
+\usepackage{float}
 
 \hypersetup{
   colorlinks=true,
@@ -740,50 +741,50 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 
 \subsubsection*{Content Distribution}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
 \begin{tabularx}{\textwidth}{lXXX}
 \toprule
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
-\textbf{Mechanism} & Client pulls via WebSocket & Server pushes via HTTP POST & Tiered cascade: local $\to$ endpoint $\to$ gossip $\to$ relay \\
-\textbf{Discovery} & Author's outbox relays (NIP-65) & Federated timeline, hashtags & WoT gossip with blinded pubkeys \\
-\textbf{Read privacy} & Relay sees all subscriptions & Admin sees all activity; DMs unencrypted & Blinded pubkeys rotate daily \\
-\textbf{Offline} & Not supported & Not supported & BLE mesh via FIPS; store-and-forward \\
+\textbf{Mechanism} & Client pulls from relays via WebSocket (REQ/EVENT) & Server pushes to followers' instances via HTTP POST to shared inbox & Tiered cascade: local pact (Tier~1) $\to$ cached endpoint (Tier~2) $\to$ WoT gossip (Tier~3) $\to$ relay fallback (Tier~4) \\
+\textbf{Discovery} & Client connects to author's outbox relays (NIP-65) & Federated timeline, relay servers, hashtag trends & WoT-bounded gossip with blinded pubkeys; 2-hop propagation boundary \\
+\textbf{Read privacy} & Relay sees all subscriptions and read patterns & Instance admin can see all activity; DMs stored unencrypted & Blinded pubkeys rotate daily; storage peers cannot identify the requester \\
+\textbf{Offline} & Not supported & Not supported & BLE mesh (Tier~0) via FIPS; store-and-forward over radio, serial, Tor \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \subsubsection*{Censorship Resistance}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
 \begin{tabularx}{\textwidth}{lXXX}
 \toprule
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
-\textbf{Surface} & Individual relays can drop events & Admin has unilateral suspend/delete & No single point---data across 20+ WoT peers \\
-\textbf{Filtering} & Per-relay policies; NIP-42; PoW & Per-instance moderation; domain blocks & WoT filtering; 2-hop trust boundary \\
-\textbf{Account risk} & Low (self-sovereign key) & High---admin can suspend & Very low---bilateral obligation \\
+\textbf{Censorship surface} & Individual relays can drop events; mitigated by multi-relay publishing & Instance admin has unilateral suspend/delete power; domain blocks sever federation & No single point---data distributed across 20+ WoT peers \\
+\textbf{Content filtering} & Per-relay policies; NIP-42 auth gating; proof-of-work spam deterrence (NIP-13) & Per-instance admin moderation; community-level domain blocklists & WoT filtering---gossip propagates only within 2-hop trust boundary; no global moderation authority \\
+\textbf{Account risk} & Low (self-sovereign keypair) but relays can refuse to serve events & High---admin can suspend with no technical appeal mechanism & Very low---pact partners hold data under bilateral obligation \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \subsubsection*{Scalability and Costs}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \small
 \begin{tabularx}{\textwidth}{lXXX}
 \toprule
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
-\textbf{Cost bearer} & Relay operators (\$5--20/mo paid relays) & Instance operators (10--20 GB/day media cache) & Distributed; volume-balanced within 30\% \\
-\textbf{Bandwidth} & Variable; duplicates across relays & One POST per remote instance & Distributed; scales with pact count and follow graph \\
-\textbf{Popular content} & Each relay serves independently & Boosts replicate per instance & Cascading read-caches: $O(\text{followers})$ \\
-\textbf{Infrastructure} & ${\sim}1{,}000$ relays & ${\sim}26{,}000$ instances & 25\% Full / 75\% Light; no central infra \\
+\textbf{Cost bearer} & Relay operators (shifted to users via paid relays, ${\sim}$\$5--20/mo) & Instance operators (media cache: 10--20 GB/day with relay subscriptions) & Distributed across participants---volume-balanced within 30\% tolerance \\
+\textbf{Bandwidth} & Variable; duplicate events across relays multiply client bandwidth & Federation delivery: one HTTP POST per remote instance with followers & Scales with pact count and event rate; bounded by volume balancing \\
+\textbf{Popular content} & Each relay serves independently; no coordinated caching & Boosts replicate to each instance separately & Cascading read-caches: reads create replicas, scaling $O(\text{followers})$ \\
+\textbf{Infrastructure} & ${\sim}1{,}000$ relays (471 public, 191 restricted); concentration on high-traffic relays & ${\sim}26{,}000$ instances; mastodon.social dominates with 348k+ accounts & 25\% Full nodes (always-on), 75\% Light nodes (intermittent); no central infrastructure \\
 \bottomrule
 \end{tabularx}
 \end{table}
