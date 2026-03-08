@@ -470,6 +470,28 @@ P(unavailable) = (0.05)^5 * (0.70)^15
 
 This represents approximately one-in-a-billion chance of complete data unavailability at any instant -- comparable to enterprise storage system reliability, achieved entirely through social graph redundancy.
 
+### 6.7 Relay-Mediated Encrypted Channels (NIP-46)
+
+NIP-46 established that Nostr relays can serve as encrypted bidirectional message buses using NIP-44 encryption. While originally designed for remote signing ("Nostr Connect"), the underlying pattern -- encrypted, bidirectional, relay-mediated communication -- is a general-purpose primitive. Any two peers can establish an encrypted channel through a shared relay without exchanging IP addresses or requiring simultaneous online presence.
+
+Gozzip leverages this infrastructure for three purposes:
+
+- **Client-to-client communication.** Peers establish encrypted channels through any shared relay. No IP addresses are exposed, no NAT traversal is required, and no simultaneous online presence is needed. The relay queues encrypted messages until the recipient comes online.
+
+- **Pact data transport.** Pact negotiation (kind 10053), challenge-response verification, and event synchronization flow through encrypted relay channels. This is especially valuable for intermittent-to-intermittent pairs where direct connections are unreliable.
+
+- **Remote signing and pact delegation.** A pact management daemon (running on a desktop or VPS) handles storage obligations and challenge responses while signing keys remain on the user's personal device. The daemon requests signatures via NIP-46 only when needed -- pact formation, challenge signing -- separating key custody from availability obligations.
+
+This reduces several categories of complexity:
+
+- **NAT traversal** -- relays handle connection brokering.
+- **Direct connection requirements** -- peers never need each other's IP address.
+- **Online simultaneity** -- relays queue messages for offline recipients.
+- **Custom transport infrastructure** -- reuses existing NIP-46 relay implementations.
+- **Key exposure risk** -- signing stays on the user's device.
+
+Relay-mediated channels do not replace the retrieval cascade (Section 6) but provide a reliable encrypted communication substrate for all peer-to-peer protocol messages. They complement FIPS (Section 8) for internet-based transport, offering an additional path that works through the existing Nostr relay network.
+
 ---
 
 ## 7. Flow Control
