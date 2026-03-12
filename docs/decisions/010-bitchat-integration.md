@@ -7,7 +7,7 @@
 
 Gozzip's delivery stack requires internet connectivity. No transport exists for offline scenarios — protests, disasters, connectivity-limited regions. Additionally, there is no way to discover nearby users without already knowing their identity, and no emergency data destruction mechanism for users in hostile environments.
 
-[Bitchat](https://github.com/permissionlesstech/bitchat) solves offline messaging via BLE mesh with Nostr integration. Several of its features can be adapted for Gozzip without protocol changes.
+[BitChat](https://github.com/permissionlesstech/bitchat) is an open-source protocol for encrypted peer-to-peer messaging over BLE. It brings strong cryptographic foundations — Noise Protocol (XX pattern) handshakes with forward secrecy, compact binary framing designed for low-bandwidth links, Bloom filter gossip deduplication, and traffic analysis resistance through fixed-size packet padding. BitChat solves ephemeral local messaging well; Gozzip needs exactly these capabilities as its offline transport layer. Rather than reimplementing these primitives, we adopt BitChat as Tier 0 transport and adapt several of its features for Gozzip's context.
 
 ## Decision
 

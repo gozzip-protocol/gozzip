@@ -42,7 +42,7 @@
 \title{
   \textbf{Trust-Weighted Gossip for Decentralized Storage and Retrieval} \\[0.5em]
   \large A Protocol for Returning Information Custody to the Social Graph \\[0.3em]
-  \normalsize Version 1.0
+  \normalsize Version 1.1
 }
 \author{
   Leon Acosta \\
@@ -682,10 +682,12 @@ The social graph's WoT structure overlays this physical topology. In many cases,
 FIPS enables a genuinely offline-first mode:
 
 \begin{enumerate}
-  \item \textbf{BLE mesh transport} (Layer 0 in the delivery priority): nearby devices relay events up to 7 hops via Bluetooth Low Energy, encrypted with Noise Protocol XX handshakes.
+  \item \textbf{BLE mesh transport} (Layer 0 in the delivery priority): nearby devices relay events up to 7 hops via Bluetooth Low Energy, encrypted with Noise Protocol XX handshakes. The BLE mesh layer is designed to be interoperable with BitChat~\cite{bitchat}, an open-source protocol for encrypted peer-to-peer messaging over BLE. BitChat provides well-engineered cryptographic primitives for this layer---Noise Protocol session management, compact binary framing optimized for low-bandwidth links, Bloom filter gossip deduplication, and traffic analysis resistance through fixed-size packet padding---that the protocol adopts rather than reimplements.
   \item \textbf{Store-and-forward queuing}: when no transport is available, events are queued locally (up to 1,000 events or 50MB) and auto-drain when any transport becomes available.
   \item \textbf{Geohash discovery}: ephemeral subkeys (not linked to identity) with geohash tags enable nearby-device discovery without revealing identity.
 \end{enumerate}
+
+The relationship between the two protocols is complementary. BitChat excels as a real-time ephemeral mesh---designed for scenarios like protests or disaster zones where there is no internet and no persistent identity is needed. Our protocol adds the persistence layer: storage pacts that keep data alive across offline periods, a Web of Trust that governs propagation, and a social graph that serves as long-term infrastructure. BitChat handles immediate local communication; our protocol handles sovereign social networking. Together they form a complete stack from Bluetooth radio to persistent social media.
 
 \subsection{The ``Pub Server'' Problem, Solved Differently}
 
@@ -723,6 +725,10 @@ The challenge-response proof of storage mechanism draws from Filecoin's Proof of
 \subsection{FIPS and Mesh Networking}
 
 FIPS~\cite{fips} provides the transport-agnostic mesh layer that our protocol requires for internet-independent operation. FIPS's use of Nostr keypairs for node identity creates a natural integration point. The spanning tree routing with bloom filter discovery is complementary to our WoT-based gossip routing: FIPS handles physical reachability while the gossip layer handles social relevance.
+
+\subsection{BitChat and BLE Mesh Messaging}
+
+BitChat~\cite{bitchat} implements encrypted peer-to-peer messaging over Bluetooth Low Energy using a four-layer protocol stack: application, session, Noise Protocol encryption, and transport. Its design goals---confidentiality, authentication, forward secrecy, and resilience in lossy environments---align with the requirements of our protocol's offline transport layer. BitChat's Noise XX handshake provides mutual authentication and forward secrecy without requiring prior key exchange, its compact binary framing minimizes bandwidth on constrained BLE links, and its Bloom filter gossip deduplication prevents routing loops efficiently. Our protocol integrates BitChat as Layer 0 transport rather than reimplementing these primitives, and extends the stack with persistent storage (pacts), trust-weighted routing (WoT gossip), and long-term identity (key hierarchy with social recovery)---capabilities that BitChat intentionally omits in favor of ephemeral, infrastructure-free messaging.
 
 \subsection{Local-First Software}
 
@@ -995,7 +1001,19 @@ This roadmap is a deployment plan for a protocol validated analytically, not by 
 These gaps are not architectural blockers. The protocol's core mechanisms---pact formation, challenge-response verification, WoT-filtered gossip, tiered retrieval---are analytically sound. The unknowns are deployment parameters that require production data to resolve---engineering challenges, not architectural ones.
 
 % ============================================================
-\begin{thebibliography}{21}
+\section*{Acknowledgments}
+
+This protocol builds on the work of several open-source projects and their contributors:
+
+\begin{itemize}
+  \item \textbf{BitChat}~\cite{bitchat} --- The BLE mesh transport layer (Tier 0) adopts BitChat's Noise Protocol session management, compact binary framing, and Bloom filter gossip deduplication rather than reimplementing these primitives. BitChat's design for encrypted peer-to-peer messaging over constrained BLE links directly informed the protocol's offline-first capabilities.
+  \item \textbf{FIPS}~\cite{fips} --- The transport-independent mesh layer that enables the protocol to operate across heterogeneous transports. FIPS's use of Nostr keypairs as native node identities provides the critical identity convergence point between the social graph and the physical network.
+  \item \textbf{Nostr}~\cite{nostr} --- The event model, relay architecture, and NIP ecosystem provide the compatibility layer that makes incremental adoption possible. The protocol's events are valid Nostr events, and existing relays require no modification.
+  \item \textbf{Secure Scuttlebutt}~\cite{ssb} --- The insight that gossip-based social networking with local-first storage is viable, and the identification of the ``pub server'' problem that this protocol addresses through bilateral storage pacts.
+\end{itemize}
+
+% ============================================================
+\begin{thebibliography}{22}
 
 \bibitem{nostr}
 Nostr Protocol.
@@ -1107,6 +1125,11 @@ K.~Menger.
 Nostr Protocol.
 \newblock ``NIP-46: Nostr Connect.''
 \newblock \url{https://github.com/nostr-protocol/nips/blob/master/46.md}, 2023.
+
+\bibitem{bitchat}
+Permissionless Tech.
+\newblock ``BitChat Protocol Whitepaper.''
+\newblock \url{https://github.com/permissionlesstech/bitchat}, 2025.
 
 \end{thebibliography}
 

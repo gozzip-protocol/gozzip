@@ -8,6 +8,12 @@
 
 Five features adapted from bitchat's architecture, integrated into Gozzip's protocol. The goal is offline resilience, local discovery, and emergency safety — without compromising Gozzip's identity model or privacy guarantees.
 
+### Why BitChat
+
+BitChat is a well-engineered protocol for the problem it solves: encrypted, ephemeral, peer-to-peer messaging over BLE with no servers, no accounts, and no internet. Its cryptographic layer — Noise Protocol (XX pattern) with Curve25519/ChaChaPoly/SHA256, per-session forward secrecy, and Ed25519 signing — is rigorous. Its compact binary framing (13-byte fixed header, PKCS#7 padding to standard block sizes) is purpose-built for BLE's constrained MTU. And its Bloom filter gossip deduplication solves routing loops efficiently with minimal memory.
+
+Rather than reimplementing these primitives, Gozzip adopts BitChat as its Tier 0 transport. The two protocols are complementary: BitChat excels as a real-time ephemeral mesh for immediate local communication. Gozzip adds the persistence layer — storage pacts, Web of Trust routing, long-term identity with key hierarchy and social recovery — that turns ephemeral messaging into sovereign social infrastructure. BitChat handles "send a message to someone nearby right now." Gozzip handles "own your social life permanently." Together they form a complete stack from Bluetooth radio to persistent social media.
+
 ## 1. BLE Mesh Transport (Interop with Bitchat)
 
 ### Problem
