@@ -52,7 +52,7 @@ After hole punching, the direct connections are spread across the internet — d
 
 - **Per-relay partial graphs.** A relay operator sees which pubkeys publish to them and which clients fetch from them. Over time, read patterns can suggest follow relationships.
 - **Relay convergence.** If most users use the same 3-5 popular relays, those operators see a disproportionate share of traffic. The protocol supports relay diversity; whether it happens depends on deployment.
-- **Timing correlation.** If Alice publishes at 14:03:01 and Bob fetches at 14:03:04 from the same relay, the operator can infer a relationship. Similarly, NIP-46 store/fetch timing can suggest pact pairings even though the payload is encrypted. Mitigated by batch fetching, polling intervals, and jittered NIP-46 operations.
+- **Timing correlation.** If Alice publishes at 14:03:01 and Bob fetches at 14:03:04 from the same relay, the operator can infer a relationship. Similarly, NIP-46 store/fetch timing can suggest pact pairings even though the payload is encrypted. Partially mitigated by batch fetching, polling intervals, and jittered NIP-46 operations. However, a persistent relay operator observing for 2-4 weeks can probabilistically identify pact pairs despite jitter.
 - **Partial pact inference from signaling.** A relay that handles hole-punch signaling for 3-5 of a user's pact partners can infer those specific relationships — but not the other 15-17.
 
 ## Surveillance surface by device type
@@ -92,7 +92,7 @@ After hole punching, the direct connections are spread across the internet — d
 - If using relay-mediated channels: nothing beyond encrypted blobs (but the relay mediating the channel can observe timing patterns between the two parties)
 - If using direct connections for bulk sync: the user's IP during sync sessions
 
-**Risk profile:** Low exposure through relays. Even when direct connections are used for bulk pact sync, the outbox model fragments the surveillance surface: NAT hole-punch signaling for each pact partner goes through a different relay, and the resulting direct connections are spread across different ISPs and jurisdictions. No single relay sees all 20 pact signaling exchanges; no single ISP sees all 20 direct connections. A pact partner who connects directly learns this user's IP — but only their own relationship, not the other 19.
+**Risk profile:** Moderate exposure. Even when direct connections are used for bulk pact sync, the outbox model fragments the surveillance surface: NAT hole-punch signaling for each pact partner goes through a different relay, and the resulting direct connections are spread across different ISPs and jurisdictions. No single relay sees all 20 pact signaling exchanges; no single ISP sees all 20 direct connections. A pact partner who connects directly learns this user's IP — but only their own relationship, not the other 19. However, with N pact partners using direct connections, N independent entities learn the user's IP. Each can independently associate the pubkey with a physical location. In adversarial environments, relay-mediated channels should be preferred to avoid this cumulative exposure.
 
 ### Light node (Witness) — phone, laptop
 
@@ -180,8 +180,8 @@ After hole punching, the direct connections are spread across the internet — d
 ### Colluding relay operators
 
 **Sees:** Merged view of multiple relays. IP addresses of all their respective clients. Broader read/write patterns. Combined NIP-46 timing data.
-**Can infer:** More complete follow graphs. Cross-relay activity patterns. Stronger pact pairing candidates (from merged NIP-46 timing across relays).
-**Still cannot see:** Encrypted content. Rotating-token request targets (token rotates daily, different per relay interaction). Pact partner identities with certainty (NIP-46 encrypted — timing correlation is probabilistic, not definitive).
+**Can infer:** More complete follow graphs. Cross-relay activity patterns. Stronger pact pairing candidates (from merged NIP-46 timing across relays). Rotating-token request targets — the token H(target_pubkey || YYYY-MM-DD) is trivially reversible by any relay that knows the pubkey set. Colluding relays with a directory of known pubkeys can resolve every request token to its target identity.
+**Still cannot see:** Encrypted content. Pact partner identities with certainty (NIP-46 encrypted — timing correlation is probabilistic, not definitive).
 **To go further, needs:** Break NIP-44/NIP-46 encryption or compromise user devices.
 
 ### Physical proximity attacker (BLE scanning)
@@ -198,13 +198,32 @@ After hole punching, the direct connections are spread across the internet — d
 **Can do:** Withhold data (detected by checkpoint cross-verification). Share stored events with third parties (events are already signed and could be public).
 **Cannot do:** Forge events (no access to signing keys). Decrypt DMs (separate key). Modify stored events (signature verification fails).
 
+### DM metadata exposure
+
+NIP-59 gift wraps expose both sender and recipient to the relay operator. The sender is identifiable via the signing device pubkey (resolvable to root identity through kind 10050). The recipient's pubkey appears in the `p` tag, required for relay routing. The relay therefore knows both sides of every DM exchange.
+
+**What a relay operator handling DM traffic sees:**
+- Sender identity (device pubkey → root identity via kind 10050)
+- Recipient identity (`p` tag)
+- Timing and frequency of DM exchanges
+- Response patterns (Alice sends, Bob responds 3 minutes later)
+
+**What a relay operator does NOT see:**
+- DM content (NIP-44 encrypted)
+- Content of any media references within DMs
+
+**Mitigation options (not yet implemented):**
+- DM relay rotation — use different relays for DMs to different recipients
+- Batch DM delivery — queue and publish in fixed intervals to degrade timing precision
+- Consider blinded recipient identifiers for DM routing (requires recipients to poll rather than relay-route)
+
 ## Summary table
 
 | Adversary | Sees IP? | Sees social graph? | Sees content? | Sees pact topology? |
 |-----------|----------|-------------------|---------------|-------------------|
 | ISP / network tap | Yes (to relays; to peers if hole-punching) | No | No | No (but direct connection patterns are partial evidence) |
 | Single relay operator | Yes (connecting clients) | Partial (read patterns) | No (encrypted) | Probabilistic (NIP-46 timing correlation) |
-| Colluding relays | Yes (their respective clients) | More complete partial | No | Stronger probabilistic (merged timing) |
+| Colluding relays | Yes (their respective clients) | ~80% if 3-5 popular relays serving majority of users collude | No | Stronger probabilistic (merged timing) |
 | BLE scanner | No | No | No | No |
 | Compromised pact partner | Maybe (if direct sync) | No (only their pact) | Their pact's events only | No (only their own) |
 | User's own devices | Yes | Yes | Yes | Yes |
@@ -222,3 +241,38 @@ After hole punching, the direct connections are spread across the internet — d
 5. **Physical presence is the hardest to hide.** BLE mesh participation reveals that someone is nearby using encrypted mesh. Ephemeral keys prevent identity linkage, but physical presence itself is observable. This is a fundamental limit of radio communication.
 
 6. **Relay diversity is a deployment problem, not a protocol problem.** The protocol supports publishing to multiple relays and fetching from different ones. If users converge on few relays, those operators gain disproportionate visibility. This mirrors the web: HTTPS is encrypted, but if everyone uses the same CDN, that CDN sees traffic patterns.
+
+## Permanent Identity Linkage
+
+Every published event is permanently and irrevocably linked to the author's pubkey via cryptographic signature. This is a fundamental architectural property with significant privacy implications:
+
+1. **Non-repudiability.** Unlike Signal's deniable messages, Gozzip events carry non-repudiable signatures. A signed event proves authorship to any third party. This applies to public posts, reactions, reposts, and DMs (the outer gift wrap is signed).
+
+2. **Retroactive deanonymization.** If a pseudonymous pubkey is ever linked to a real-world identity — through a KYC exchange, a slip in operational security, or legal compulsion — ALL historical events signed by that pubkey are attributed. The entire posting history becomes identified retroactively.
+
+3. **Cross-protocol portability of attribution.** Because events are self-authenticating signed JSON, they can be rebroadcast to other networks with intact signatures. A signed post can serve as evidence outside the Gozzip/Nostr ecosystem.
+
+4. **No expiration.** Signed events have no built-in expiration. Events stored by pact partners, relays, or anyone who received them persist indefinitely with intact authorship proof.
+
+This is an inherent property of any protocol built on cryptographic signatures and is shared with Nostr. It is the opposite of deniability-by-design systems like Signal. Users who require deniability should use purpose-built tools for sensitive communications.
+
+## Privacy Non-Goals
+
+Gozzip is a censorship-resistant social networking protocol with practical privacy improvements over existing social platforms. It is NOT an anonymous communication tool. To set accurate expectations:
+
+- **Gozzip does not provide anonymity.** Every event is permanently linked to the author's pubkey.
+- **Gozzip does not provide content deniability.** Signed events are non-repudiable and can be verified by any third party.
+- **Gozzip does not provide read privacy against motivated adversaries.** The rotating request token is computationally trivial to reverse for any party that knows the target pubkey — including relay operators.
+- **Gozzip does not provide forward secrecy for public content.** Public events are permanently signed and attributable.
+- **Gozzip does not protect against relay collusion.** Three to five colluding relay operators serving a majority of users can reconstruct near-complete social graphs from metadata.
+- **Gozzip does not hide DM communication graphs.** Relay operators see sender and recipient of every DM, even though content is encrypted.
+
+**What Gozzip does provide:**
+- Censorship resistance through distributed storage (no single party can delete your data)
+- Key hierarchy that contains device compromise
+- Encrypted DMs (content privacy, not metadata privacy)
+- WoT-bounded gossip that limits information propagation to trusted peers
+- Relay fragmentation that raises the cost of comprehensive surveillance
+- BLE mesh for local communication without internet
+
+**For users facing state-level adversaries, use purpose-built privacy tools:** Tor for anonymous browsing, Signal for private messaging, Briar for metadata-resistant communication. Gozzip complements these tools but does not replace them.

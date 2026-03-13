@@ -57,7 +57,7 @@
 % ============================================================
 \begin{abstract}
 Decentralized social protocols---Nostr, ActivityPub (Mastodon), AT Protocol (Bluesky)---still depend on servers that control what gets stored, served, and censored. This paper presents an open, censorship-resistant protocol for social media and messaging that returns data custody to the social graph itself. The protocol inherits Nostr's proven primitives---secp256k1 identity, signed events, relay transport---and adds a storage and retrieval layer where users own their data. Because events are self-authenticating (signed by the author's keys), public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services; protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable.
-Users form reciprocal \emph{storage pacts} with trust-weighted peers, creating a distributed storage mesh that mirrors how human communities naturally preserve and transmit information. All protocol intelligence---gossip forwarding, pseudonymous request matching, WoT filtering, device resolution---lives in clients. Standard Nostr relays work without any modifications; optimized relays can optionally accelerate specific operations. We describe the pact formation mechanism, a tiered retrieval protocol with cascading fallback paths, and a Web of Trust (WoT)-filtered gossip layer that bounds propagation while maintaining epidemic delivery guarantees.
+Users form reciprocal \emph{storage pacts} with trust-weighted peers, creating a distributed storage mesh that mirrors how human communities naturally preserve and transmit information. All protocol intelligence---gossip forwarding, pseudonymous request matching, WoT filtering, device resolution---lives in clients. Standard Nostr relays work without any modifications; optimized relays can optionally accelerate specific operations. We describe the pact formation mechanism, a tiered retrieval protocol with cascading fallback paths, and a Web of Trust (WoT)-filtered gossip layer that bounds propagation while achieving high-probability delivery within the trust boundary.
 We further describe how integration with FIPS (Free Internetworking Peering System) extends the protocol to operate across heterogeneous transports including mesh radio, Bluetooth, and overlay networks, eliminating dependence on the internet itself.
 \end{abstract}
 
@@ -180,6 +180,8 @@ The protocol formalizes this as \emph{guardian pacts}: an established user (\emp
 
 The pay-it-forward framing is deliberate: today's Seedling becomes tomorrow's Guardian. A user who was supported during their bootstrap phase is encouraged (by client UX, not protocol enforcement) to volunteer a guardian slot once they reach Sovereign phase.
 
+\textbf{Incentive limitation:} Guardian pacts are one-sided---the Guardian stores data for a Seedling and receives nothing in return. Game-theoretic analysis shows the unique Nash equilibrium is ``nobody volunteers''---a classic public goods problem where individual rationality produces collective failure. The pay-it-forward framing relies on prosocial behavior, not rational self-interest. Operational deployment should include either: (a) Genesis Guardian nodes (5--10 operator-run full nodes providing guardian services during the first 6--12 months), (b) a guardian incentive mechanism (gossip priority boost, persistent WoT edge after successful guardianship), or (c) both. Guardian pact design is an active area of development.
+
 \subsection{Gossip as Curated Propagation}
 
 When humans gossip, they don't broadcast to everyone. They share selectively based on trust and relevance. The protocol's WoT-filtered forwarding mirrors this:
@@ -214,16 +216,16 @@ The small-world structure also explains why WoT-bounded gossip works at all: the
 
 \subsection{Scale-Free Topology: Robustness and Vulnerability}
 
-The protocol's simulation uses Barab\'{a}si--Albert (BA) preferential attachment~\cite{barabasi-albert} to generate social graphs with power-law degree distributions $P(k) \sim k^{-\gamma}$. This choice is not arbitrary: empirical studies consistently find scale-free structure in online social networks, with $\gamma$ typically between 2 and 3.
+The protocol's simulation uses Barab\'{a}si--Albert (BA) preferential attachment~\cite{barabasi-albert} to generate social graphs with power-law degree distributions $P(k) \sim k^{-\gamma}$. This choice follows a common modeling convention: online social networks exhibit heavy-tailed degree distributions with properties qualitatively similar to scale-free networks, though whether they follow strict power-law distributions is debated~\cite{broido-clauset}. The BA model is a useful approximation---not an exact match---for exploring the protocol's behavior on heterogeneous graphs.
 
 Albert, Jeong, and Barab\'{a}si~\cite{albert-attack} proved a fundamental asymmetry in scale-free networks:
 
 \begin{itemize}
-  \item \textbf{Random failure}: Scale-free networks tolerate the random removal of up to 80--95\% of nodes before losing their giant component. Low-degree nodes (the vast majority) contribute little to global connectivity, so their failure has negligible effect.
+  \item \textbf{Random failure}: Networks with heavy-tailed degree distributions tolerate significant random node removal before losing their giant component. Low-degree nodes (the vast majority) contribute little to global connectivity, so their failure has negligible effect. The exact tolerance depends on the degree distribution; for networks with finite second moment (log-normal or truncated power-law, common in real social networks), the percolation threshold is non-trivial but still high.
   \item \textbf{Targeted attack}: Removing nodes in order of decreasing degree fragments scale-free networks after removing as few as 5--18\% of the highest-degree hubs.
 \end{itemize}
 
-Cohen et al.~\cite{cohen-percolation} formalized this using percolation theory. The giant component survives random removal as long as $\kappa = \langle k^2 \rangle / \langle k \rangle > 2$ (the Molloy--Reed criterion). For scale-free networks with $\gamma \leq 3$, the second moment $\langle k^2 \rangle$ diverges, so $\kappa \to \infty$ and the percolation threshold approaches 1---the network is effectively immune to random failure.
+Cohen et al.~\cite{cohen-percolation} formalized this using percolation theory. The giant component survives random removal as long as $\kappa = \langle k^2 \rangle / \langle k \rangle > 2$ (the Molloy--Reed criterion). For idealized scale-free networks with $\gamma \leq 3$, the second moment diverges and the percolation threshold approaches 1. Real social networks have finite degree distributions, so $\kappa$ is finite---but the protocol's 12--40 pact redundancy provides local protection regardless of the global degree distribution.
 
 These results directly inform three protocol design decisions:
 
@@ -599,6 +601,8 @@ hop 3: 300 * 20 * (1 - 0.25) = 4,500 nodes
 
 Cumulative reach: ${\sim}4{,}820$ nodes within 3 hops.
 
+This is a mean-field approximation that assumes uniform random neighborhood overlap. In highly clustered networks ($C > 0.5$), actual unique reach is substantially lower because 2-hop neighborhoods overlap heavily. At realistic online rates (${\sim}46\%$), the unique \emph{online} reach is approximately 400--500 nodes. The protocol compensates through WoT-targeted forwarding (gossip is directed at likely holders, not broadcast randomly) and relay fallback (Tier~4) for the estimated 5--10\% of reads that gossip alone cannot serve.
+
 \subsection{Rate Limiting and Gossip Hardening}
 
 The gossip layer implements per-source rate limiting to prevent amplification attacks. All hardening rules are enforced client-side---no relay modifications required:
@@ -608,7 +612,7 @@ The gossip layer implements per-source rate limiting to prevent amplification at
   \item Kind 10057 (data requests): 50 req/s per source pubkey.
 \end{itemize}
 
-Rate limiting uses a sliding window counter per source. Excess requests are silently dropped. Combined with WoT-only forwarding, this bounds the gossip blast radius to the trust network while maintaining epidemic delivery within it.
+Rate limiting uses a sliding window counter per source. Excess requests are silently dropped. Combined with WoT-only forwarding, this bounds the gossip blast radius to the trust network while achieving high-probability delivery within it. Gossip provides probabilistic, not guaranteed, delivery. The relay fallback (Tier~4) is an integral component of the delivery mechanism that handles an estimated 5--10\% of reads under normal conditions, not a path of last resort.
 
 Request deduplication uses an LRU cache of 10,000 request IDs. Duplicate requests are dropped silently, preventing gossip loops and reducing amplification.
 
@@ -635,6 +639,7 @@ The above calculation assumes independent failures across pact partners. In prac
 \subsection{Relay-Mediated Encrypted Channels (NIP-46)}
 
 NIP-46~\cite{nip46} established that Nostr relays can serve as encrypted bidirectional message buses using NIP-44 encryption. While originally designed for remote signing (``Nostr Connect''), the underlying pattern---encrypted, bidirectional, relay-mediated communication---is a general-purpose primitive. Any two peers can establish an encrypted channel through a shared relay without exchanging IP addresses or requiring simultaneous online presence.
+The relay provides message confidentiality (it cannot read encrypted content) and IP address hiding between peers. However, the relay learns the communication graph---it sees both the sender's pubkey and recipient's pubkey (via the \texttt{p} tag), along with timing patterns of all operations. This metadata exposure is an inherent property of relay-mediated communication.
 
 Gozzip leverages this infrastructure for three purposes:
 
@@ -650,7 +655,7 @@ This reduces several categories of complexity:
 
 \begin{itemize}
   \item \textbf{NAT traversal}---relays handle connection brokering.
-  \item \textbf{Direct connection requirements}---peers never need each other's IP address.
+  \item \textbf{Direct connection requirements}---when using relay-mediated channels, peers never need each other's IP address. Direct connections (used optionally for bulk pact sync) do expose IPs to each pact partner.
   \item \textbf{Online simultaneity}---relays queue messages for offline recipients.
   \item \textbf{Custom transport infrastructure}---reuses existing NIP-46 relay implementations.
   \item \textbf{Key exposure risk}---signing stays on the user's device.
@@ -862,7 +867,7 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 \midrule
 \textbf{Where data lives} & Relay servers & Home instance (PostgreSQL) & User's device + 12--40 pact partners (equilibrium-seeking) \\
 \textbf{Who controls} & Relay operators & Instance admin & User + bilateral pact partners \\
-\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & Equilibrium-seeking pact count + 3 standby; $P(\text{all-offline}) \approx 10^{-9}$ (independent failures) to $10^{-3}$ (correlated) \\
+\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & Equilibrium-seeking pact count + 3 standby; availability 99.9--99.97\% under realistic correlated failures ($10^{-9}$ under theoretical independent-failure assumption) \\
 \textbf{If infra dies} & Events lost unless duplicated & All posts from instance lost & Pact partners retain copies \\
 \bottomrule
 \end{tabularx}
@@ -1110,6 +1115,10 @@ This roadmap is a deployment plan for a protocol validated analytically, not by 
   \item \textbf{Economic sustainability of full nodes.} Full nodes bear disproportionate storage and bandwidth costs. Whether the social incentive (reliable storage reciprocity) is sufficient, or whether economic incentives (micropayments, premium services) are needed, remains to be determined.
 
   \item \textbf{Cooperative equilibrium fragility.} The cooperative equilibrium is fragile above approximately 30\% defection. If more than 30\% of nodes free-ride, the incentive to cooperate degrades for remaining honest nodes. The protocol makes defection observable through reliability scoring and creates a reach advantage for cooperators, but whether this gradient is sufficient in practice is unknown.
+
+  \item \textbf{DM metadata exposure.} NIP-59 gift wraps expose both sender (device pubkey, resolvable to root identity via kind 10050) and recipient (\texttt{p} tag) to relay operators handling DM traffic. Content is encrypted, but the communication graph is fully visible. DM relay rotation and batched delivery can partially mitigate timing analysis but do not hide the sender-recipient pairs.
+
+  \item \textbf{Relay collusion threat.} Colluding relay operators controlling 60--80\% of relay traffic can reconstruct near-complete social graphs from merged metadata, identify probable pact pairings through NIP-46 timing analysis, and reverse all rotating request tokens for known pubkeys. The protocol's primary defense is relay diversity (users connecting through many relays), but whether real-world relay concentration permits this diversity is an empirical question.
 \end{itemize}
 
 These gaps are not architectural blockers. The protocol's core mechanisms---pact formation, challenge-response verification, WoT-filtered gossip, tiered retrieval---are analytically sound. The unknowns are deployment parameters that require production data to resolve---engineering challenges, not architectural ones.
@@ -1199,6 +1208,11 @@ D.~Watts, S.~Strogatz.
 A.-L.~Barab\'{a}si, R.~Albert.
 \newblock ``Emergence of Scaling in Random Networks.''
 \newblock \emph{Science}, 286(5439):509--512, 1999.
+
+\bibitem{broido-clauset}
+A.~D.~Broido, A.~Clauset.
+\newblock ``Scale-free networks are rare.''
+\newblock \emph{Nature Communications}, 10:1017, 2019.
 
 \bibitem{albert-attack}
 R.~Albert, H.~Jeong, A.-L.~Barab\'{a}si.

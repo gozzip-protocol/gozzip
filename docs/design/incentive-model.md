@@ -51,13 +51,17 @@ Relays aren't one thing. Different types provide different value.
 3. Users want to publish through you → more content to curate
 4. Relay becomes a hub for discovery beyond individual WoT graphs
 
-**For a passive user (lurker):**
-1. Minimal storage contribution → few pact partners → limited forwarding advocates
-2. Content distribution is small but functional — WoT contacts still see posts
-3. Can still discover content through relays and own follows
-4. No punishment — just less amplification
+**For a passive user (lurker / read-only):**
+1. Lurkers (60-80% of users on typical social platforms) have no content to offer in bilateral pacts
+2. The reach reward (more forwarding) has zero value for users who don't produce content
+3. Rational behavior for lurkers is to form zero pacts — defection is the dominant strategy
+4. Lurkers consume content through relays and gossip read-caches from followed authors' pact partners
+5. This is an honest equilibrium: lurkers are relay-dependent consumers, not sovereign participants
+6. The protocol's incentive model primarily serves the 10-20% of users who actively create content
 
-**No cliff.** There's no minimum contribution to participate. Less contribution means less reach, not exclusion.
+A "consumer mode" (relay-dependent, no pacts) should be a first-class client experience for passive users, not a degraded state. The protocol's data sovereignty claims apply to content creators, not lurkers.
+
+**No individual cliff.** There's no minimum contribution to participate. Less contribution means less reach, not exclusion. However, the cooperative equilibrium is fragile at the network level: game-theoretic analysis shows that above approximately 30% free-riding, the incentive to cooperate degrades for remaining honest nodes, and above 70%, data availability becomes unreliable. The network has two stable equilibria — universal cooperation (everyone stores) and universal defection (nobody stores, relay fallback only). The protocol's goal is to maintain the cooperative equilibrium through the reach gradient, but this is not guaranteed.
 
 **Keeper ratio assumption:** The plausibility analysis models 25% of users running always-on full nodes (Keepers). This is an optimistic target. Comparable systems achieve 0.1-5% always-on participation (Bitcoin full nodes: ~0.01%, Mastodon instance operators: ~2%, Nostr relays: 0.2-1%). The protocol is designed to function at full-node ratios as low as 5%. At 5% Keepers, the all-light-node availability analysis applies (P(unavailable) ≈ 0.08%), which remains acceptable. The incentive loop above is designed to encourage Keeper operation organically, but the protocol must not depend on achieving 25%.
 
@@ -94,7 +98,21 @@ The base layer is free. Lightning adds a premium tier — relays publish a servi
 - **Relays** — subscriber count. Bad curation or broken promises → users leave
 - **Users** — reciprocity. Stop contributing → pact partners drop you → reach shrinks
 
-No cliffs, no gatekeepers. Everything degrades gracefully.
+Individual experience degrades gracefully. Network-level cooperation is fragile above ~30% defection — see fragility warning above.
+
+## Fragility and Limitations
+
+The incentive model has structural limitations that should be acknowledged:
+
+**The lurker gap.** Bilateral pacts require both parties to produce content. Read-only users (60-80% of typical social platforms) cannot participate in the pact economy. The incentive model covers the 10-20% who create content. The remaining users are permanent relay consumers. This is acceptable — lurkers have minimal data to protect — but it means the "data sovereignty for everyone" framing overstates the protocol's reach.
+
+**The 30% tipping point.** Game-theoretic analysis (see adversarial review, Agent 03) shows the cooperative equilibrium collapses when free-riding exceeds approximately 30%. At 50% free-riding, data availability degrades measurably. At 70%, the network is functionally unreliable. The reach gradient (more pacts → more forwarding) is the primary defense, but its magnitude may be insufficient for users who don't value wider reach.
+
+**Volume matching creates activity-band segregation.** The +/-30% volume tolerance means power users (100+ events/day) can only pair with similar-volume users. Users at extremes of the activity distribution may struggle to find compatible partners within their 2-hop WoT.
+
+**Guardian pacts have no Nash equilibrium for volunteering.** Guardian pacts are one-sided: the Guardian stores a Seedling's data and receives nothing in return. The unique Nash equilibrium is "nobody volunteers." The pay-it-forward framing relies on prosocial behavior, not rational self-interest. Operational deployment requires either Genesis Guardian infrastructure or a guardian incentive mechanism.
+
+**Relay economics during transition.** As pacts mature and relay traffic decreases, relay operators lose their primary value (storage revenue) before the Lightning premium layer generates replacement income. This creates a "valley of death" where relay sustainability is threatened during the transition from relay-dependent to sovereign operation. Relays must remain economically viable because they are permanently needed for content discovery and cross-community content.
 
 ## Rejected Alternatives
 
