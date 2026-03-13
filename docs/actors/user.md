@@ -9,7 +9,7 @@ A user may hold one or more of these named roles depending on their node type, n
 | Persona | Role | Description |
 |---------|------|-------------|
 | **Keeper** | Full node pact partner | Stores complete event history for pact partners. Always-on (95% uptime). |
-| **Witness** | Light node pact partner | Stores recent events (~monthly) for pact partners. Phase 1: browser extension/web (60% uptime). Phase 2: mobile (30% uptime). |
+| **Witness** | Light node pact partner | Stores recent events (~monthly) for pact partners. Phase 1: browser extension/web (60% uptime). Phase 2: mobile (30% uptime — assumes active app usage; mobile OS constraints limit true background uptime to 0.3-5%). |
 | **Guardian** | Bootstrap sponsor | Volunteers storage for one untrusted newcomer outside their WoT. |
 | **Seedling** | Bootstrapping newcomer | Growing into the network, receiving initial storage support. |
 | **Herald** | Relay operator | Curates and relays content for beyond-graph reach. |
@@ -62,7 +62,7 @@ Contributing to the network earns wider content reach — no tokens, no subscrip
 
 Gozzip works without internet through BLE mesh and local queuing. Inspired by [bitchat](https://github.com/permissionlesstech/bitchat). See [ADR 010](../decisions/010-bitchat-integration.md).
 
-- **BLE mesh** — nearby devices exchange events via Bluetooth. Multi-hop relay up to 7 hops. Interoperable with bitchat's mesh network. No internet required.
+- **BLE mesh** — nearby devices exchange events via Bluetooth. Multi-hop relay up to 7 hops (practical maximum is 3-4 hops; the primary use case is 1-hop direct exchange). Interoperable with bitchat's mesh network. No internet required.
 - **Store-and-forward** — events are queued locally when no transport is available. Auto-delivered when connectivity returns.
 - **Nearby mode** — discover nearby users via ephemeral subkeys and geohash tags. Identity is never revealed unless the user explicitly chooses to. Activates/deactivates on demand.
 - **Panic wipe** — emergency destruction of all local data (keys, events, state). Recovery via cold storage root key and storage peers. Optional decoy mode.
@@ -76,7 +76,7 @@ Gozzip works without internet through BLE mesh and local queuing. Inspired by [b
 | Offline tolerance | Needs to catch up from checkpoint | Already has everything |
 | Who runs it | Mobile clients, casual users | Power users, archivists |
 | Storage pacts | Participates when online — stores only checkpoint window (~monthly) for pact partners | Full participation — always-on, stores complete history for pact partners |
-| Expected uptime | 30% | 95% |
+| Expected uptime | 30% (assumes active app usage; mobile OS constraints limit true background uptime to 0.3-5%) | 95% |
 
 ## Interactions
 

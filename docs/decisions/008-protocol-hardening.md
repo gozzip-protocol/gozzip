@@ -11,14 +11,17 @@ After three rounds of protocol optimization, deep analysis identified 12 remaini
 
 ### 1. DM Key Rotation (P0)
 
-Rotate the DM key every 90 days. Derived via `KDF(root, "dm-decryption-" || rotation_epoch)`. Old keys deleted from devices after a 7-day grace window. Provides bounded forward secrecy (~97 days).
+Rotate the DM key every 90 days (default). Derived via `HKDF-SHA256(root, "dm-decryption-" || rotation_epoch)`. Old keys deleted from devices after a 7-day grace window. Provides bounded forward secrecy (~97 days at default period).
+
+The 90-day default is configurable. Users in high-threat environments may reduce this to 30 days for a smaller exposure window on device compromise. The trade-off is more frequent key distribution events.
 
 ### 2. Gossip Hardening (P0)
 
-Three-layer defense against gossip amplification:
+Four-layer defense against gossip amplification:
 - `request_id` tag on kind 10055 and 10057 for deduplication
 - Per-hop rate limiting (10 req/s for 10055, 50 req/s for 10057 per source)
 - WoT-only forwarding (2-hop boundary)
+- **Per-event size limit:** Gossip-forwarded events MUST NOT exceed 64 KB in total serialized size. Nodes receiving events larger than 64 KB via gossip MUST drop them without forwarding. Events exceeding this limit can still be stored by pact partners and served via direct request, but they are excluded from the gossip propagation layer. This prevents gossip amplification attacks where an attacker within the WoT publishes arbitrarily large events.
 
 ### 3. Checkpoint Cross-Verification (P0)
 
@@ -48,9 +51,9 @@ Kind 10050 device tags gain an optional `dm` flag: `["device", "<pubkey>", "mobi
 
 Required client behavior: alert the user when kind 0 or kind 3 is updated from a different device. Client-side only, no protocol change.
 
-### 9. Dual-Day Blind Matching (P2)
+### 9. Dual-Day Token Matching (P2)
 
-Storage peers match kind 10057 blinded pubkeys against both today and yesterday's date, handling clock skew at day boundaries.
+Storage peers match kind 10057 rotating request tokens against both today and yesterday's date, handling clock skew at day boundaries. Note: the rotating request token (`H(target_pubkey || YYYY-MM-DD)`) is a pseudonymous lookup key, not a cryptographic blinding scheme. It prevents casual observers from linking requests across days but is trivially reversible by any party that knows the target's public key.
 
 ### 10. seq Counter Recovery (P2)
 
@@ -62,7 +65,7 @@ Before broadcasting kind 10055 replacement requests, clients wait `random(0, 48h
 
 ### 12. Gossip Topology Exposure (P2)
 
-WoT-only forwarding limits exposure. Relays can offer onion routing as an optional Lightning-paid service — gossip requests wrapped in NIP-44 encrypted layers per hop, hiding the request path from intermediate nodes.
+WoT-only forwarding limits exposure. Onion routing for gossip requests (NIP-44 encrypted layers per hop, hiding the request path from intermediate nodes) is a potential future enhancement but is not part of the current protocol specification. It requires substantial design work (route construction, exit node authentication, circuit correlation prevention) and is deferred to a future ADR.
 
 ## Consequences
 

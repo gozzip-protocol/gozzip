@@ -42,7 +42,7 @@
 \title{
   \textbf{Trust-Weighted Gossip for Decentralized Storage and Retrieval} \\[0.5em]
   \large A Protocol for Returning Information Custody to the Social Graph \\[0.3em]
-  \normalsize Version 1.1
+  \normalsize Version 1.2
 }
 \author{
   Leon Acosta \\
@@ -56,8 +56,8 @@
 
 % ============================================================
 \begin{abstract}
-Decentralized social protocols---Nostr, ActivityPub (Mastodon), AT Protocol (Bluesky)---still depend on servers that control what gets stored, served, and censored. This paper presents an open, censorship-resistant protocol for social media and messaging that returns data custody to the social graph itself. The protocol inherits Nostr's proven primitives---secp256k1 identity, signed events, relay transport---and adds a storage and retrieval layer where users own their data. Because events are self-authenticating (signed by the author's keys), they are portable across protocols: convertible to and from ActivityPub, AT Protocol, and other decentralized formats.
-Users form reciprocal \emph{storage pacts} with trust-weighted peers, creating a distributed storage mesh that mirrors how human communities naturally preserve and transmit information. All protocol intelligence---gossip forwarding, blinded matching, WoT filtering, device resolution---lives in clients. Standard Nostr relays work without any modifications; optimized relays can optionally accelerate specific operations. We describe the pact formation mechanism, a tiered retrieval protocol with cascading fallback paths, and a Web of Trust (WoT)-filtered gossip layer that bounds propagation while maintaining epidemic delivery guarantees.
+Decentralized social protocols---Nostr, ActivityPub (Mastodon), AT Protocol (Bluesky)---still depend on servers that control what gets stored, served, and censored. This paper presents an open, censorship-resistant protocol for social media and messaging that returns data custody to the social graph itself. The protocol inherits Nostr's proven primitives---secp256k1 identity, signed events, relay transport---and adds a storage and retrieval layer where users own their data. Because events are self-authenticating (signed by the author's keys), public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services; protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable.
+Users form reciprocal \emph{storage pacts} with trust-weighted peers, creating a distributed storage mesh that mirrors how human communities naturally preserve and transmit information. All protocol intelligence---gossip forwarding, pseudonymous request matching, WoT filtering, device resolution---lives in clients. Standard Nostr relays work without any modifications; optimized relays can optionally accelerate specific operations. We describe the pact formation mechanism, a tiered retrieval protocol with cascading fallback paths, and a Web of Trust (WoT)-filtered gossip layer that bounds propagation while maintaining epidemic delivery guarantees.
 We further describe how integration with FIPS (Free Internetworking Peering System) extends the protocol to operate across heterogeneous transports including mesh radio, Bluetooth, and overlay networks, eliminating dependence on the internet itself.
 \end{abstract}
 
@@ -97,7 +97,7 @@ We propose a local-first architecture where:
   \item \textbf{Primary storage} resides on the user's device and their close WoT peers (1--2 hops).
   \item \textbf{Primary retrieval} queries the trust network first, not relay infrastructure.
   \item \textbf{Relay role} is demoted to optional discovery and curation---useful for beyond-graph reach, not required for existence.
-  \item \textbf{Data is self-authenticating and portable.} Every event is signed by the author's keys. Data can be converted to and from ActivityPub, AT Protocol, and other decentralized formats---users own their data, not the protocol.
+  \item \textbf{Data is self-authenticating and portable.} Every event is signed by the author's keys. Public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services. Protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable. Cross-protocol identity linking uses signed attestations.
 \end{itemize}
 
 This is gossip protocol in the computer science sense---epidemic information spreading through a peer mesh~\cite{vanrenesse}---with WoT determining propagation priority. The protocol inherits Nostr's proven primitives---secp256k1 keypairs, signed events, relay transport---and works with existing Nostr relays and clients from day one. All protocol intelligence lives in clients; standard relays store and forward events without modification. The combination of Nostr's key model, social-graph storage, and trust-weighted routing creates a system where the network's social structure \emph{is} its infrastructure.
@@ -113,7 +113,7 @@ The paper makes three contributions:
 % ============================================================
 \section{Communities and Protocols: A Structural Parallel}
 
-The design of this protocol is not merely inspired by human social dynamics---it is structurally isomorphic to them. Each protocol primitive maps to an observable pattern in how humans form communities, maintain relationships, and propagate information.
+The design of this protocol draws inspiration from human social dynamics. Each protocol primitive maps to an observable pattern in how humans form communities, maintain relationships, and propagate information.
 
 \subsection{Inner Circle, Outer Circle, Acquaintances}
 
@@ -128,7 +128,7 @@ The protocol mirrors this with three node roles:
 \toprule
 \textbf{Human Layer} & \textbf{Protocol Equivalent} & \textbf{Persona} & \textbf{Storage Obligation} & \textbf{Uptime} \\
 \midrule
-Inner circle (5--15) & Full nodes (25\%) & \emph{Keeper} & Complete event history & 95\% \\
+Inner circle (5--15) & Full nodes (5--25\%) & \emph{Keeper} & Complete event history & 95\% \\
 Extended circle (50--150) & Light nodes (75\%) & \emph{Witness} & Rolling 30-day window & 30\% \\
 Acquaintances (150+) & Relay-discovered peers & \emph{Herald} & None (optional caching) & Variable \\
 \bottomrule
@@ -278,7 +278,7 @@ This has two implications for the protocol:
 
 \begin{enumerate}
   \item \textbf{Gossip confinement}: In high-modularity networks (typical of social graphs), gossip propagating within a WoT community rarely crosses community boundaries because few edges span the gap. This is a \emph{feature}: read requests for a community member's content are served by community members, keeping traffic local. The inter-community relay fallback handles the exceptions.
-  \item \textbf{Privacy through topology}: The blinded request mechanism (Section~\ref{sec:retrieval}) provides cryptographic privacy, but community structure provides \emph{topological} privacy as an additional layer. A gossip request for Alice's data propagates through Alice's community---nodes outside the community never see the request, regardless of blinding.
+  \item \textbf{Privacy through topology}: The rotating request token mechanism (Section~\ref{sec:retrieval}) provides pseudonymous lookup, but community structure provides \emph{topological} privacy as an additional layer. A gossip request for Alice's data propagates through Alice's community---nodes outside the community never see the request, regardless of the token's properties.
 \end{enumerate}
 
 \subsection{Redundant Paths and Fault Tolerance}
@@ -311,7 +311,7 @@ Acquaintances & ${\sim}500$ & Relay-discovered peers & Beyond WoT boundary \\
 
 The 20-pact target sits within the sympathy group layer (${\sim}15$), reflecting that storage pacts require ongoing reciprocal obligation---a level of commitment compatible with the ${\sim}15$ relationships humans maintain with regular contact. The 2-hop WoT boundary (${\sim}150$ effective peers) aligns with Dunbar's number, beyond which trust assessment becomes unreliable.
 
-This is not coincidence. The protocol's viability depends on the social graph's structure, and that structure is constrained by human cognitive limits. A protocol that required 500 pact partners would exceed the sympathy group's capacity; one that relied on 5-hop WoT would extend trust beyond the Dunbar boundary. The parameter choices respect the cognitive architecture that generates the social graph.
+The design draws inspiration from Dunbar's social layer model (5/15/50/150), though the protocol's parameters are ultimately justified by the availability and storage calculations rather than by strict social-layer correspondence. Online social networks may diverge from Dunbar's predictions in important ways (asymmetric follows, larger follow lists, parasocial relationships). Nevertheless, the broad intuition holds: a protocol that required 500 pact partners would exceed most users' reciprocal relationship capacity, and one that relied on 5-hop WoT would extend trust beyond meaningful social distance.
 
 % ============================================================
 \section{Protocol Primitives}
@@ -327,6 +327,8 @@ Each participant holds a secp256k1 keypair, compatible with Nostr's identity mod
   \item \textbf{Device subkeys}---sign day-to-day events (posts, reactions, DMs).
 \end{itemize}
 
+Subkeys are derived using HKDF-SHA256 (RFC 5869) with IKM = root private key (32 bytes), salt = \texttt{gozzip-v1} (protocol constant), info = purpose label string (e.g., \texttt{governance}, \texttt{device/0}), output = 32 bytes interpreted as a secp256k1 scalar (reduced mod curve order $n$; retry with incremented counter if zero).
+
 The Web of Trust is defined by follow relationships. A node $p$ follows a set of nodes $F_p$. The WoT distance $d(p,q)$ is the minimum number of follow-hops from $p$ to $q$. The protocol operates within a 2-hop boundary: nodes forward gossip only to peers where $d(p,q) \leq 2$.
 
 \subsection{Node Types}
@@ -338,7 +340,9 @@ Let $N = \{n_1, n_2, \ldots, n_k\}$ be the set of network participants. Each nod
   \item \textbf{Light nodes} (\emph{Witnesses}) maintain events within a checkpoint window $W$ (default 30 days) for their pact partners. Expected uptime: $u_{\text{light}} = 0.30$.
 \end{itemize}
 
-The network composition follows the distribution observed in real deployments: approximately 25\% Full nodes (always-on servers, dedicated hardware) and 75\% Light nodes (mobile devices, intermittent connectivity).
+The 30\% light node uptime figure assumes the user actively opens the app several times daily. Mobile OS background execution constraints (iOS BGAppRefreshTask, Android Doze) limit true background uptime to 0.3--5\%. The protocol's availability calculations remain valid at these lower figures because full nodes (Keepers) dominate the availability guarantee; even if all light nodes have near-zero uptime, the full-node pact partners provide the critical redundancy.
+
+The protocol is designed to function at full-node ratios as low as 5\%. The 25\% ratio used in the baseline analysis represents an optimistic target; comparable decentralized systems achieve 0.1--5\% always-on node participation. At 5\% full nodes, the all-light-node availability analysis ($P(\text{unavailable}) = 0.08\%$) applies, which remains acceptable for a peer-to-peer system. The baseline analysis uses approximately 25\% Full nodes (always-on servers, dedicated hardware) and 75\% Light nodes (mobile devices, intermittent connectivity).
 
 \subsection{Events}
 
@@ -363,6 +367,16 @@ Checkpoints (kind 10051) are periodic reconciliation markers published by each u
 
 Checkpoints enable light nodes to verify data completeness without downloading full history, and define the storage obligation boundary for light pact partners.
 
+\textbf{Merkle tree construction:} The checkpoint Merkle root is a SHA-256 binary hash tree. Leaves are the 32-byte event IDs (the SHA-256 hash that Nostr already computes for each event), ordered canonically by \texttt{(device\_pubkey, seq)}---device pubkey lexicographic first, then sequence number ascending. If the number of leaves is not a power of two, the last leaf is duplicated to fill the next power of two. Internal nodes are computed as $H(\text{left\_child} \| \text{right\_child})$. Two implementations given the same event set MUST produce the same root.
+
+\textbf{Protocol versioning:} All custom event kinds (10050--10064) include a \texttt{protocol\_version} tag (currently \texttt{"1"}). Clients receiving events with an unknown version process them on a best-effort basis. Breaking changes increment the version number. Pact partners verify version compatibility during formation; incompatible versions trigger pact replacement.
+
+\subsection{Media References}
+
+Events that include media (images, video, audio) carry content-addressed hash references rather than inline data. Each media file is stored externally---on CDNs, S3, IPFS, or self-hosted servers---and referenced via a \texttt{media} tag containing the SHA-256 hash of the raw bytes, MIME type, byte count, and a URL hint. The event itself remains ${\sim}1$~KB regardless of the number of media attachments.
+
+Media volume is excluded from event pact obligations. Users who want peer-to-peer media redundancy can form optional \emph{media pacts} (kind 10053 with \texttt{type:~media})---separate volume accounting, separate challenges (random byte-range verification), and a configurable retention window (default: 90 days). Media pacts are restricted to Keepers (90\%+ uptime). Clients verify $\text{SHA-256}(\text{downloaded\_bytes}) = \text{hash\_from\_media\_tag}$ on every fetch; source authenticity is guaranteed by the hash, not the server.
+
 % ============================================================
 \section{Storage Pact Mechanism}
 \label{sec:pacts}
@@ -377,7 +391,7 @@ A storage pact is a bilateral agreement between two nodes to store each other's 
   \item \textbf{Accept} (kind 10053): Both parties exchange private pact events and begin mutual storage.
 \end{enumerate}
 
-Qualification requires: WoT membership (follows or followed-by), volume balance within tolerance $\delta$, and minimum account age (default 7 days to prevent Sybil pact formation).
+Qualification requires: WoT membership (follows or followed-by), volume balance within tolerance $\delta$, minimum account age (default 7 days to prevent Sybil pact formation), and a \textbf{follow-age requirement} of at least 30 days of mutual follow history. This prevents gaming WoT edges instrumentally---an attacker cannot create a fresh identity, follow a target, and immediately form a reciprocal pact. Bootstrap pacts (one-sided, temporary) are exempt to avoid blocking new user onboarding.
 
 \subsection{Volume Balancing}
 
@@ -392,31 +406,57 @@ where $\delta = 0.30$ (30\% tolerance). This ensures symmetric risk: neither par
 Each node maintains two classes of pact partners:
 
 \begin{itemize}
-  \item \textbf{Active pacts} (default: 20): Partners that are regularly challenged and expected to serve data on request.
+  \item \textbf{Active pacts}: Partners that are regularly challenged and expected to serve data on request. The count is not fixed---it emerges from the equilibrium-seeking formation model described below.
   \item \textbf{Standby pacts} (default: 3): Partners that receive events but are not challenged. Standby partners are promoted to active when an active partner fails, providing instant failover without renegotiation delay.
 \end{itemize}
 
-For high-follower accounts, the pact count scales:
+\subsubsection*{Equilibrium-Seeking Formation}
+
+Rather than prescribing a fixed pact count, the protocol forms pacts until a measurable comfort condition is satisfied. At each hour $h$, the count of online pact partners $X_h$ follows a \emph{Poisson binomial distribution}---a sum of independent Bernoulli variables with per-partner online probabilities $p_i(h)$ derived from uptime histograms (rolling 7-day challenge-response data).
+
+\textbf{Comfort condition:}
+\begin{equation}
+  \forall h \in \{0..23\}:\; P(X_h < K) \leq \varepsilon
+\end{equation}
+where $K = 3$ (minimum online partners) and $\varepsilon = 0.001$. The protocol keeps forming pacts until this condition is met at every hour, then stops.
+
+The Berry-Esseen bound shows that the normal approximation to the Poisson binomial is unreliable at the $\varepsilon = 0.001$ tail for $n < 50$. Clients use exact convolution (a $O(n^2)$ dynamic programming computation, trivial for $n \leq 50$) to evaluate the comfort condition.
+
+The equilibrium pact count is emergent, not prescribed:
 
 \begin{table}[h]
 \centering
-\begin{tabular}{ll}
+\begin{tabular}{lll}
 \toprule
-\textbf{Followers} & \textbf{Active Pacts} \\
+\textbf{Pact Composition} & \textbf{Equilibrium Count} & \textbf{Mean Online (Worst Hour)} \\
 \midrule
-$< 100$ & 10 \\
-$100$--$1{,}000$ & 20 \\
-$1{,}000$--$10{,}000$ & 30 \\
-$10{,}000+$ & 40+ \\
+All Keepers (95\%) & ${\sim}7$ & ${\sim}6.7$ \\
+50\% Keeper / 50\% Witness & ${\sim}10$ & ${\sim}6.2$ \\
+25\% Keeper / 75\% Witness (typical) & 14--20 & ${\sim}9.2$ \\
+All Witnesses (30\%) & 33--40 & ${\sim}10$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The required mean online count at the worst hour is approximately 10 regardless of composition---a universal constant of the comfort condition at $K{=}3$, $\varepsilon{=}0.001$.
+
+\textbf{Asymmetric equilibria and PACT\_FLOOR:} Keepers reach comfort at ${\sim}7$ pacts, Witnesses at ${\sim}35$. Without intervention, Keepers stop accepting at 7, starving Witnesses of high-uptime partners. The protocol enforces a \textbf{PACT\_FLOOR $= 12$}: every node maintains at least 12 active pacts regardless of personal comfort. This ensures Keepers accept pacts beyond their own threshold, providing the availability that Witnesses need. The ceiling is 40 active pacts.
+
+\textbf{Formation state machine:} Nodes progress through states: \emph{Bootstrap} (0 pacts, accept all) $\to$ \emph{Growing} (comfort not met, actively seek) $\to$ \emph{Comfortable} (comfort met and $n \geq$ FLOOR, stop seeking) $\to$ \emph{Over-Provisioned} ($n >$ CEILING, begin dissolving). A \emph{Degraded} state handles comfort loss (partner dropped, uptime changed). Hysteresis prevents thrashing: recruit when $P(X_h < K) > \varepsilon$, dissolve only when $P(X_h < K) < \varepsilon/10$ (a 10$\times$ gap between thresholds).
+
+\textbf{Marginal value:} The marginal improvement from adding one more partner with uptime $u$ is $\Delta(n) = \binom{n}{K-1} \cdot u^K \cdot (1-u)^{n-K+1}$. Clients stop seeking when $\Delta(n) < \varepsilon/100$.
+
+\textbf{Functional diversity constraint:} Clients enforce a minimum Keeper (full node, 90\%+ uptime) ratio among active pact partners: at least 15\% of active pacts must be Keepers. A pact set with zero Keepers has no always-on storage---all data becomes unavailable during overnight hours when Witnesses sleep. When the Keeper ratio drops below the minimum, the client prioritizes recruiting Keeper partners.
+
+\textbf{Uptime complementarity:} Peer selection minimizes uptime overlap across the pact set. Clients compute a \emph{pact set coverage score}: for each hour of the day, count how many pact partners are typically online (derived from challenge-response timestamps over a rolling 7-day window). The coverage score is the minimum hourly count across all 24 hours. Target: $\geq 3$ (at least 3 partners online during every hour). When evaluating new pact offers, prefer partners whose uptime pattern fills existing coverage gaps. This catches a failure mode that geographic diversity alone misses: peers in adjacent timezones with 80\%+ uptime overlap due to similar schedules.
+
+\textbf{Correlated failures:} The independent-failure assumption is optimistic. Shared timezones, ISPs, and OS updates introduce correlation. Under a beta-binomial model, correlation $\rho = 0.10$ requires ${\sim}2.6\times$ more pacts; $\rho = 0.20$ requires ${\sim}10\times$ more. Geographic diversity and uptime complementarity reduce $\rho$ toward zero, keeping the equilibrium count tractable.
 
 \subsection{Proof of Storage}
 
 Pact partners are verified through periodic challenge-response exchanges (kind 10054):
 
-\textbf{Hash challenge}: The challenger specifies a range of event sequence numbers and a nonce. The partner computes $H(\text{events}[i..j] \| \text{nonce})$ and returns the hash. This proves possession without transferring full events.
+\textbf{Hash challenge}: The challenger specifies a range of event sequence numbers and a nonce. The partner computes $H(\text{events}[i..j] \| \text{nonce})$ and returns the hash. This proves possession without transferring full events. The exact serialization is: $\text{SHA-256}(\text{canonical\_json}(e_i) \| \text{canonical\_json}(e_{i+1}) \| \ldots \| \text{canonical\_json}(e_j) \| \text{nonce\_bytes})$ where \texttt{canonical\_json} is Nostr's event serialization format (the \texttt{[0,~pubkey,~created\_at,~kind,~tags,~content]} array used to compute event IDs). The nonce is 32 random bytes. Events are ordered by \texttt{(device\_pubkey,~seq)}---the same ordering used for Merkle tree construction.
 
 \textbf{Serve challenge}: The challenger requests a specific event by sequence number and measures response latency. Consistently slow responses ($>$500ms) suggest the partner is proxying rather than storing locally. Flagged peers receive $3\times$ challenge frequency.
 
@@ -442,6 +482,32 @@ $< 50\%$ & Failed & Drop immediately, promote standby \\
 \end{tabular}
 \end{table}
 
+\textbf{Age-biased challenge distribution:} 50\% of challenges target events from the oldest third of the stored range, 30\% from the middle third, 20\% from the newest third. This catches selective deletion of old data---a strategy where a peer keeps recent events (frequently requested) while discarding older events to save storage. Without age-biased distribution, a peer could maintain a ${>}90\%$ reliability score by storing only recent data.
+
+\textbf{Channel-aware challenge retry:} When a challenge times out, the client distinguishes between ``peer failed'' and ``communication channel failed.'' Before marking a challenge as failed, the client retries through an alternative relay (selected from NIP-65 relay list or known mutual relays). If the retry succeeds, the original relay is flagged as unreliable; future challenges for this peer use the working relay. This prevents a malicious or unreliable relay from causing pact churn by dropping NIP-46 messages.
+
+\subsection{Network Partition Handling}
+
+Network partitions (country-level shutdowns, WoT community splits, relay outages) are handled explicitly:
+
+\textbf{Detection:} A partition is suspected when ${\geq}3$ pact partners in the same WoT cluster fail challenges within a 1-hour window while the client's own relay connectivity remains functional.
+
+\textbf{During partition:} Reliability scoring is suspended for partition-affected peers. Pact replacement is not initiated. Standby pacts provide availability. The client continues operating with remaining reachable partners and relay fallback.
+
+\textbf{After partition heals:} Challenge-response resumes with previously partitioned peers. Events created during the partition are reconciled via checkpoint comparison. Reliability scores are restored to pre-partition levels after 3 consecutive successful challenges. Peers that genuinely failed (not just unreachable) are replaced through standard mechanisms.
+
+\subsection{Pact Set Health}
+
+In addition to per-peer reliability, clients track aggregate pact set health:
+
+\begin{itemize}
+  \item \textbf{Coverage score}---minimum number of online partners across all 24 hours (from uptime histograms). Target $\geq 3$.
+  \item \textbf{Overlap coefficient}---average pairwise uptime overlap. Lower is better (more complementary coverage).
+  \item \textbf{Functional balance}---ratio of Keepers to total active pacts. Target $\geq 15\%$.
+\end{itemize}
+
+When the coverage score drops below 3 or the Keeper ratio drops below 15\%, the client prioritizes pact replacement---selecting partners whose uptime profile fills identified coverage gaps.
+
 \subsection{Storage Obligations}
 
 The total storage obligation per user depends on the pact partner composition:
@@ -450,7 +516,7 @@ The total storage obligation per user depends on the pact partner composition:
 \begin{equation}
   S = P \cdot \bigl(f \cdot \mathbb{E}[\text{size}] \cdot R \cdot D_{\text{full}} + (1-f) \cdot \mathbb{E}[\text{size}] \cdot R \cdot D_{\text{light}}\bigr)
 \end{equation}
-where $P$ = number of active pacts (default 20), $f$ = fraction of Full node partners (${\sim}0.25$), $\mathbb{E}[\text{size}]$ = 925 bytes, $R$ = events per day (default 25), $D_{\text{full}}$ = complete history duration, $D_{\text{light}} = \min(\text{duration}, W)$.
+where $P$ = number of active pacts (emerges from the equilibrium model, typically 12--20), $f$ = fraction of Full node partners (${\sim}0.25$), $\mathbb{E}[\text{size}]$ = 925 bytes, $R$ = events per day (default 25), $D_{\text{full}}$ = complete history duration, $D_{\text{light}} = \min(\text{duration}, W)$.
 
 \subsection{Guardian Pacts}
 
@@ -475,13 +541,13 @@ Expiry conditions: 90 days from formation, or the Seedling reaches Hybrid phase 
 
 When a node needs to retrieve events from a followed author, the protocol attempts delivery through a cascade of increasingly expensive paths:
 
-\textbf{Tier~0---BLE mesh (nearby):} Nearby devices serve events via Bluetooth Low Energy mesh, relayed up to 7 hops. No internet required. Interoperable with FIPS transport layer (Section~\ref{sec:fips}). Latency: variable.
+\textbf{Tier~0---BLE mesh (nearby):} Nearby devices serve events via Bluetooth Low Energy mesh, relayed up to 7 hops. While the protocol supports up to 7 relay hops, practical throughput degrades exponentially per hop. The effective maximum for usable data exchange is 3--4 hops; the primary everyday use case is 1-hop direct peer exchange. No internet required. Interoperable with FIPS transport layer (Section~\ref{sec:fips}). Latency: variable.
 
 \textbf{Tier~1---Instant (local):} The node already stores the author's events locally, either through an active pact or from a previous read cache. Cost: zero network traffic. Latency: zero.
 
 \textbf{Tier~2---Cached Endpoint:} The node has cached endpoint addresses (kind 10059) for the author's storage peers. A direct connection retrieves the events without gossip overhead. Latency: ${\sim}60$ms base + 20ms jitter.
 
-\textbf{Tier~3---Gossip (kind 10057):} The node broadcasts a blinded data request to its WoT peers with TTL$=$3. The request uses a blinded pubkey $bp = H(\text{target\_pubkey} \| \text{YYYY-MM-DD})$ that rotates daily. Latency: ${\sim}80$ms per hop + 30ms jitter per hop.
+\textbf{Tier~3---Gossip (kind 10057):} The node broadcasts a data request to its WoT peers with TTL$=$3. The request uses a rotating request token $bp = H(\text{target\_pubkey} \| \text{YYYY-MM-DD})$---a daily-rotating pseudonymous lookup key. This provides protection against relays that do not already know the target pubkey, but is trivially reversible by any party with knowledge of the target's public key. Latency: ${\sim}80$ms per hop + 30ms jitter per hop.
 
 \textbf{Tier~4---Relay Fallback:} After a configurable timeout (default 30s), the node falls back to a traditional relay query. This is the path of last resort. Latency: ${\sim}200$ms base + 50ms jitter.
 
@@ -502,19 +568,24 @@ This creates cascading read-caches that replicate popular content across the fol
 
 The read cache is bounded (default 100MB) and LRU-evicted.
 
-\subsection{Blinded Requests and Privacy}
+\textbf{Media retrieval} follows the same cascade but at a per-file level. Clients first check local cache, then try the URL hint in the \texttt{media} tag, then query media pact partners (if any), then fall back to IPFS or relay-hosted caches. Hash verification ensures integrity regardless of source.
 
-Data requests (kind 10057) use blinded pubkeys to preserve reader privacy:
+\textbf{Content discovery beyond the WoT} is intentionally relay-dependent. Content from authors outside the 2-hop WoT boundary is discoverable through relay queries (Tier~4). Clients subscribe to hashtag-filtered feeds from relays, which serve as curated discovery endpoints. The WoT boundary provides spam resistance and storage efficiency for the pact layer; relays serve the orthogonal function of broad content discovery.
+
+\subsection{Rotating Request Tokens and Privacy}
+
+Data requests (kind 10057) use rotating request tokens to provide pseudonymous lookup:
 \begin{equation}
   bp = H(\text{target\_root\_pubkey} \| \text{YYYY-MM-DD})
 \end{equation}
 
-The blinding salt rotates daily. Peers match incoming requests against both today's and yesterday's salts to handle clock skew. This ensures:
+The token rotates daily. Peers match incoming requests against both today's and yesterday's tokens to handle clock skew. This is a pseudonymous lookup key, not a cryptographic blinding scheme: any party that knows the target's public key can compute the token and identify which author is being requested. The privacy properties are therefore limited:
 
 \begin{itemize}
-  \item Storage peers learn that \emph{someone} requested the data, but not \emph{who}.
-  \item Observers cannot link requests across days.
-  \item The requesting node's reading patterns are not exposed to the gossip network.
+  \item Storage peers learn that \emph{someone} requested the data, but not \emph{who} (reader privacy is preserved).
+  \item Observers who do not already know the target pubkey cannot determine which author is being queried.
+  \item Observers \emph{who know the target pubkey} can trivially verify whether a request targets that author by computing the hash themselves.
+  \item Observers cannot link requests across days without recomputing tokens for each candidate pubkey.
 \end{itemize}
 
 \subsection{Gossip Reach Analysis}
@@ -542,6 +613,8 @@ Rate limiting uses a sliding window counter per source. Excess requests are sile
 
 Request deduplication uses an LRU cache of 10,000 request IDs. Duplicate requests are dropped silently, preventing gossip loops and reducing amplification.
 
+Gossip-forwarded events are limited to 64~KB per event. Events exceeding this limit are not forwarded through the gossip layer and must be retrieved directly from the author's storage peers or relays. This prevents gossip amplification attacks where an attacker within the WoT publishes arbitrarily large events that consume bandwidth across 3 hops.
+
 \subsection{Data Availability}
 
 The probability that all pact partners are simultaneously offline determines data unavailability:
@@ -551,12 +624,14 @@ The probability that all pact partners are simultaneously offline determines dat
   P(\text{unavailable}) = (1 - u_{\text{full}})^{P \cdot f} \cdot (1 - u_{\text{light}})^{P \cdot (1-f)}
 \end{equation}
 
-With default parameters ($P=20$, $f=0.25$, $u_{\text{full}}=0.95$, $u_{\text{light}}=0.30$):
+With representative parameters ($P=20$, $f=0.25$, $u_{\text{full}}=0.95$, $u_{\text{light}}=0.30$):
 \begin{equation}
   P(\text{unavailable}) = (0.05)^5 \cdot (0.70)^{15} = 3.125 \times 10^{-7} \cdot 4.747 \times 10^{-3} = 1.48 \times 10^{-9}
 \end{equation}
 
-This represents approximately one-in-a-billion chance of complete data unavailability at any instant---comparable to enterprise storage system reliability, achieved entirely through social graph redundancy.
+Under the assumption of independent failures, this represents approximately one-in-a-billion chance of complete data unavailability at any instant.
+
+The above calculation assumes independent failures across pact partners. In practice, timezone correlation (pact partners in the same timezone sleeping simultaneously) and community correlation (shared ISP, shared OS updates) introduce correlated failure modes. Under a conservative model where 12 of 20 pact partners share a timezone, overnight availability degrades to approximately $10^{-3}$ to $10^{-4}$. The protocol recommends geographic diversity in pact partner selection to mitigate this. Under realistic conditions, availability is 99.9--99.97\%---still superior to any single relay, but not the headline independent-failure number.
 
 \subsection{Relay-Mediated Encrypted Channels (NIP-46)}
 
@@ -627,6 +702,18 @@ New users begin in Bootstrap phase with full relay dependence. As they form pact
 
 When a user's activity changes and pact renegotiation is needed, the protocol introduces random jitter (0--48 hours) before broadcasting replacement requests. Standby pacts provide immediate failover during this delay. This prevents renegotiation storms---the gossip equivalent of TCP's synchronized loss recovery problem~\cite{jacobson}.
 
+\subsection{Deletion Requests and Content Reporting}
+
+\textbf{Deletion requests} (kind 10063) provide a protocol-level mechanism for authors to request removal of their own events---addressing GDPR Article~17 (``right to erasure'') compliance. A deletion request is signed by the root key or governance key (not device keys, preventing a compromised device from wiping history) and references specific event IDs. Pact partners, read-caches, and relays honor deletion requests on a best-effort basis. Deletion in a decentralized system is inherently best-effort---signed events may have been copied beyond the author's reach---but pact partners that systematically ignore deletion requests can be flagged and replaced through standard pact renegotiation. Compatible with NIP-09 (kind~5).
+
+\textbf{Content reports} (kind 10064) enable users to report content to relay operators and community moderators. Reports carry a category tag (\texttt{spam}, \texttt{harassment}, \texttt{illegal}, \texttt{csam}, \texttt{impersonation}) and are published to the reporter's relays and the reported author's relays via NIP-65. Relay operators act at their discretion. Pact partners receiving credible \texttt{csam} or \texttt{illegal} reports may delete the content and drop the pact with no reliability score penalty. Compatible with NIP-32 labeling services for third-party content filtering.
+
+\subsection{Push Notifications}
+
+Mobile devices cannot maintain persistent connections. Push notifications (kind 10062) register a user's encrypted push token with a \emph{notification relay}---a lightweight service that monitors for events matching the user's filters and sends a ``sync now'' wake-up signal via APNs or FCM.
+
+The push token and filter preferences are NIP-44 encrypted to the notification relay's pubkey---relays storing this event see an opaque blob. The push payload contains no message content; the app wakes, syncs from relays and pact partners, and generates a local notification with actual content. Users register with 2--3 notification relays for redundancy. Token rotation publishes an updated kind 10062; deregistration publishes one with empty content.
+
 % ============================================================
 \section{FIPS Integration: Beyond the Internet}
 \label{sec:fips}
@@ -689,6 +776,16 @@ FIPS enables a genuinely offline-first mode:
 
 The relationship between the two protocols is complementary. BitChat excels as a real-time ephemeral mesh---designed for scenarios like protests or disaster zones where there is no internet and no persistent identity is needed. Our protocol adds the persistence layer: storage pacts that keep data alive across offline periods, a Web of Trust that governs propagation, and a social graph that serves as long-term infrastructure. BitChat handles immediate local communication; our protocol handles sovereign social networking. Together they form a complete stack from Bluetooth radio to persistent social media.
 
+\subsection{Interplanetary Compatibility}
+
+The architectural choices described above---self-authenticating events, store-and-forward queuing, checkpoint reconciliation, explicit partition handling---happen to satisfy the requirements of delay-tolerant networking (DTN). A FIPS transport adapter for Bundle Protocol (RFC~9171) would allow the same events, pacts, and gossip mechanisms to operate over interplanetary links.
+
+Cross-planetary pacts should \emph{not} form: solar conjunction (2-week blackout every 26~months) and 3--22~minute one-way latency make challenge-response impractical and pact availability negligible. Instead, each planetary community forms its own pact mesh, and cross-planetary data exchange uses data mules (ships, scheduled transmissions) whose crew act as cascading read-caches---exactly the mechanism described in Section~\ref{sec:retrieval}. The WoT 2-hop boundary naturally contains local gossip within each planet.
+
+The primary attack vector in an interplanetary topology is \emph{WoT bridge compromise}---the 50--100 users who follow people on both planets form chokepoints for cross-planetary information flow. Bridge diversity monitoring (tracking how many independent bridges deliver content from a given author) and cross-bridge checkpoint verification provide detection. This is a structural vulnerability of any socially-routed interplanetary network.
+
+This is not an interplanetary protocol---it does not include planetary routing, scheduled contacts, or DTN-specific mechanisms. It is a protocol whose terrestrial architecture is \emph{compatible} with interplanetary requirements, and could be extended for that use case via a DTN transport adapter and latency-adapted timeouts.
+
 \subsection{The ``Pub Server'' Problem, Solved Differently}
 
 Scuttlebutt~\cite{ssb} identified the fundamental tension in peer-to-peer social networks: mobile devices go offline, but content must remain available. Scuttlebutt's solution was ``pub servers''---always-on nodes that replicate data. But pub servers are relays by another name.
@@ -696,7 +793,7 @@ Scuttlebutt~\cite{ssb} identified the fundamental tension in peer-to-peer social
 Our protocol addresses this through three mechanisms:
 
 \begin{enumerate}
-  \item \textbf{Full nodes as pact partners}: The 25\% of network participants that are always-on serve as full-history storage peers. Unlike pub servers, they have bilateral obligations enforced by challenge-response.
+  \item \textbf{Full nodes as pact partners}: The fraction of network participants that are always-on (target 5--25\%) serve as full-history storage peers. Unlike pub servers, they have bilateral obligations enforced by challenge-response.
   \item \textbf{Heterogeneous transport fallback}: When a mobile device goes offline on cellular, it may still be reachable via BLE mesh. FIPS routing finds the path.
   \item \textbf{Standby pact promotion}: When a pact partner goes unreachable, a standby partner is immediately promoted---no renegotiation, no discovery delay.
 \end{enumerate}
@@ -736,7 +833,7 @@ The Ink \& Switch research group's work on local-first software~\cite{localfirst
 
 \subsection{Infrastructure Benchmark: Nostr and Mastodon}
 
-The two most prominent decentralized social protocols---Nostr~\cite{nostr} and Mastodon/Activity\-Pub~\cite{activitypub}---represent fundamentally different architectural choices. Nostr separates identity from infrastructure but depends on relay servers. Mastodon binds identity to infrastructure through domain-coupled accounts. Our protocol makes the social graph itself the infrastructure, while maintaining interoperability with both: Nostr events work natively (same key model, same relays), and data can be converted to ActivityPub format for Mastodon federation. The following tables provide a structured comparison.
+The two most prominent decentralized social protocols---Nostr~\cite{nostr} and Mastodon/Activity\-Pub~\cite{activitypub}---represent fundamentally different architectural choices. Nostr separates identity from infrastructure but depends on relay servers. Mastodon binds identity to infrastructure through domain-coupled accounts. Our protocol makes the social graph itself the infrastructure, while maintaining interoperability with both: Nostr events work natively (same key model, same relays), and public content can be exported to ActivityPub format for Mastodon federation via bridge services (protocol-specific features such as pacts and WoT routing are not bridgeable). The following tables provide a structured comparison.
 
 \subsubsection*{Identity and Portability}
 
@@ -748,9 +845,9 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
 \textbf{Identity} & secp256k1 keypair & \texttt{user@instance} (domain-bound) & secp256k1 + key hierarchy \\
-\textbf{Portability} & Full---identity is the keypair & Partial---followers migrate; posts do not & Full---same Nostr key model; data convertible to ActivityPub/AT Protocol \\
+\textbf{Portability} & Full---identity is the keypair & Partial---followers migrate; posts do not & Full---same Nostr key model; public content exportable to ActivityPub/AT Protocol/RSS via bridges \\
 \textbf{Multi-device} & Share private key or NIP-26 & Native---server holds session & Root key delegates to device subkeys \\
-\textbf{Recovery} & None---lose key, lose identity & Admin can reset password & Root key revokes subkeys; root loss is fatal \\
+\textbf{Recovery} & None---lose key, lose identity & Admin can reset password & Root key revokes subkeys; root loss recoverable via N-of-M social recovery (kind 10060/10061) with 7-day timelock \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -764,9 +861,9 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 \toprule
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
-\textbf{Where data lives} & Relay servers & Home instance (PostgreSQL) & User's device + ${\sim}20$ pact partners \\
+\textbf{Where data lives} & Relay servers & Home instance (PostgreSQL) & User's device + 12--40 pact partners (equilibrium-seeking) \\
 \textbf{Who controls} & Relay operators & Instance admin & User + bilateral pact partners \\
-\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & 20 active + 3 standby pacts; $P(\text{all-offline}) \approx 10^{-9}$ \\
+\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & Equilibrium-seeking pact count + 3 standby; $P(\text{all-offline}) \approx 10^{-9}$ (independent failures) to $10^{-3}$ (correlated) \\
 \textbf{If infra dies} & Events lost unless duplicated & All posts from instance lost & Pact partners retain copies \\
 \bottomrule
 \end{tabularx}
@@ -782,8 +879,8 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
 \textbf{Mechanism} & Client pulls from relays via WebSocket (REQ/EVENT) & Server pushes to followers' instances via HTTP POST to shared inbox & Tiered cascade: local pact (Tier~1) $\to$ cached endpoint (Tier~2) $\to$ WoT gossip (Tier~3) $\to$ relay fallback (Tier~4) \\
-\textbf{Discovery} & Client connects to author's outbox relays (NIP-65) & Federated timeline, relay servers, hashtag trends & WoT-bounded gossip with blinded pubkeys; 2-hop propagation boundary \\
-\textbf{Read privacy} & Relay sees all subscriptions and read patterns & Instance admin can see all activity; DMs stored unencrypted & Blinded pubkeys rotate daily; storage peers cannot identify the requester \\
+\textbf{Discovery} & Client connects to author's outbox relays (NIP-65) & Federated timeline, relay servers, hashtag trends & WoT-bounded gossip with rotating request tokens; 2-hop propagation boundary \\
+\textbf{Read privacy} & Relay sees all subscriptions and read patterns & Instance admin can see all activity; DMs stored unencrypted & Rotating request tokens provide pseudonymous lookup; storage peers cannot identify the requester but parties who know the target pubkey can verify the token \\
 \textbf{Offline} & Not supported & Not supported & BLE mesh (Tier~0) via FIPS; store-and-forward over radio, serial, Tor \\
 \bottomrule
 \end{tabularx}
@@ -798,7 +895,7 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 \toprule
  & \textbf{Nostr} & \textbf{Mastodon} & \textbf{Gozzip} \\
 \midrule
-\textbf{Censorship surface} & Individual relays can drop events; mitigated by multi-relay publishing & Instance admin has unilateral suspend/delete power; domain blocks sever federation & No single point---data distributed across 20+ WoT peers \\
+\textbf{Censorship surface} & Individual relays can drop events; mitigated by multi-relay publishing & Instance admin has unilateral suspend/delete power; domain blocks sever federation & No single point---data distributed across 12--40 WoT peers (equilibrium-seeking) \\
 \textbf{Content filtering} & Per-relay policies; NIP-42 auth gating; proof-of-work spam deterrence (NIP-13) & Per-instance admin moderation; community-level domain blocklists & WoT filtering---gossip propagates only within 2-hop trust boundary; no global moderation authority \\
 \textbf{Account risk} & Low (self-sovereign keypair) but relays can refuse to serve events & High---admin can suspend with no technical appeal mechanism & Very low---pact partners hold data under bilateral obligation \\
 \bottomrule
@@ -817,7 +914,7 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 \textbf{Cost bearer} & Relay operators (shifted to users via paid relays, ${\sim}$\$5--20/mo) & Instance operators (media cache: 10--20 GB/day with relay subscriptions) & Distributed across participants---volume-balanced within 30\% tolerance \\
 \textbf{Bandwidth} & Variable; duplicate events across relays multiply client bandwidth & Federation delivery: one HTTP POST per remote instance with followers & Scales with pact count and event rate; bounded by volume balancing \\
 \textbf{Popular content} & Each relay serves independently; no coordinated caching & Boosts replicate to each instance separately & Cascading read-caches: reads create replicas, scaling $O(\text{followers})$ \\
-\textbf{Infrastructure} & ${\sim}1{,}000$ relays (471 public, 191 restricted); concentration on high-traffic relays & ${\sim}26{,}000$ instances; mastodon.social dominates with 348k+ accounts & 25\% Full nodes (always-on), 75\% Light nodes (intermittent); no central infrastructure \\
+\textbf{Infrastructure} & ${\sim}1{,}000$ relays (471 public, 191 restricted); concentration on high-traffic relays & ${\sim}26{,}000$ instances; mastodon.social dominates with 348k+ accounts & 5--25\% Full nodes (always-on), remainder Light nodes (intermittent); no central infrastructure \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -828,7 +925,7 @@ Nostr's design cleanly separates identity from infrastructure, but relays remain
 
 Mastodon bundles identity with infrastructure. The \texttt{user@instance} model means your account's survival depends on your instance operator's continued goodwill, funding, and uptime. FEP-ef61 (portable objects) and FEP-8b32 (object integrity proofs) aim to decouple identity from instances, but these remain proposals.
 
-Our protocol addresses both failure modes by making the social graph the infrastructure layer. Storage pacts distribute data custody across WoT peers with cryptographic verification. The relay is demoted from gatekeeper to optional fallback. Critically, the protocol works with standard Nostr relays without any modifications---all Gozzip event kinds are valid Nostr events, and all protocol intelligence (gossip forwarding, blinded matching, WoT filtering, device resolution) lives in clients. Because events are self-authenticating (signed JSON), they can be converted to and from ActivityPub (Mastodon), AT Protocol (Bluesky), and other decentralized formats through bridge services, making the data portable across protocols.
+Our protocol addresses both failure modes by making the social graph the infrastructure layer. Storage pacts distribute data custody across WoT peers with cryptographic verification. The relay is demoted from gatekeeper to optional fallback. Critically, the protocol works with standard Nostr relays without any modifications---all Gozzip event kinds are valid Nostr events, and all protocol intelligence (gossip forwarding, pseudonymous request matching, WoT filtering, device resolution) lives in clients. Because events are self-authenticating (signed JSON), public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services. Protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable. Cross-protocol identity linking uses signed attestations.
 
 The trade-off is protocol complexity: pact negotiation, challenge-response verification, WoT computation, and multi-tier retrieval are substantially more complex than Nostr's REQ/EVENT or Mastodon's HTTP POST delivery.
 
@@ -837,7 +934,7 @@ The honest gap: our protocol is validated analytically and by simulation. Nostr 
 % ============================================================
 \section{Conclusion}
 
-We have presented an open, censorship-resistant protocol for social media and messaging that returns data custody from server infrastructure to the social graph. The protocol inherits Nostr's proven primitives---secp256k1 identity, signed events, relay transport---and adds a storage and retrieval layer where users own their data. Because events are self-authenticating, they are portable: convertible to and from ActivityPub (Mastodon), AT Protocol (Bluesky), and other decentralized formats. The protocol works with standard Nostr relays without any modifications---all protocol intelligence lives in clients.
+We have presented an open, censorship-resistant protocol for social media and messaging that returns data custody from server infrastructure to the social graph. The protocol inherits Nostr's proven primitives---secp256k1 identity, signed events, relay transport---and adds a storage and retrieval layer where users own their data. Because events are self-authenticating, public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services; protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable, and cross-protocol identity linking uses signed attestations. The protocol works with standard Nostr relays without any modifications---all protocol intelligence lives in clients.
 
 The protocol's design mirrors human social dynamics: reciprocal storage pacts parallel reciprocal friendships, WoT-filtered gossip parallels trust-based information sharing, and the Full/Light node distinction mirrors the inner-circle/outer-circle structure of human communities.
 
@@ -845,15 +942,31 @@ The tiered retrieval cascade ensures that the vast majority of reads are served 
 
 Integration with FIPS extends the protocol beyond internet dependence, enabling operation over mesh radio, Bluetooth, and other transports. The shared Nostr identity model eliminates bridging complexity: a user's social identity is simultaneously their network address.
 
-The honest assessment: this architecture does not eliminate the need for always-on infrastructure. Full nodes---\emph{Keepers}---(25\% of the network) are the protocol's equivalent of reliable friends who are always available. The difference is structural: these nodes operate under bilateral obligations enforced by challenge-response, not under unilateral control of a platform operator. The infrastructure exists, but it is owned by the social graph.
+The protocol addresses practical deployment concerns alongside the core architecture: an equilibrium-seeking formation model replaces fixed pact count targets with a mathematically-derived comfort condition (Poisson binomial distribution, $K{=}3$ minimum online partners, $\varepsilon{=}0.001$ failure probability), so each user's pact count emerges from their specific partner composition rather than an arbitrary table; a media layer separates content-addressed media storage from event pacts, keeping pact obligations tractable; deletion requests (kind 10063) provide GDPR-compatible erasure semantics; content reporting (kind 10064) enables community moderation without centralized authority; push notifications (kind 10062) bridge the gap between mobile device constraints and real-time communication; and N-of-M social recovery (kinds 10060/10061) resolves the root key loss problem that plagues all keypair-based identity systems. The protocol's architectural foundations---self-authenticating events, store-and-forward, checkpoint reconciliation, partition handling---are structurally compatible with delay-tolerant networking, enabling potential extension to interplanetary use via a DTN transport adapter without core protocol changes.
 
-The hard problems remain. Graph bootstrap for new users requires initial relay dependence. The 75/25 Full/Light split must emerge organically through incentives, not be mandated. DM key rotation provides bounded forward secrecy but not perfect. These are engineering challenges, not architectural ones---the social graph is a viable foundation for decentralized infrastructure.
+The honest assessment: this architecture does not eliminate the need for always-on infrastructure. Full nodes---\emph{Keepers}---(an estimated 5--25\% of the network) are the protocol's equivalent of reliable friends who are always available. The difference is structural: these nodes operate under bilateral obligations enforced by challenge-response, not under unilateral control of a platform operator. The infrastructure exists, but it is owned by the social graph.
+
+The hard problems remain. Graph bootstrap for new users requires initial relay dependence. A sufficient full-node ratio (at least 5\%) must emerge organically through incentives, not be mandated. DM key rotation provides bounded forward secrecy but not perfect. These are engineering challenges, not architectural ones---the social graph is a viable foundation for decentralized infrastructure.
 
 % ============================================================
 \section{Implementation Roadmap}
 \label{sec:roadmap}
 
 This section addresses a different question: how does a real network get from today's relay-dependent world to the sovereign architecture described above? The answer is not revolution but transition---a sequence of phases where each delivers concrete value before the next begins, and where the user experience changes only when the underlying infrastructure has already proven itself.
+
+\subsection{Day-One Value}
+
+The pact layer requires network density to function, but the protocol provides immediate value before any pacts exist:
+
+\begin{itemize}
+  \item \textbf{Multi-device identity}---root key + device delegation (kind 10050) eliminates Nostr's shared-key model. Device compromise is contained; revoke the device, keep the identity.
+  \item \textbf{Encrypted DM threading with key separation}---DM encryption targets a dedicated, rotated key rather than the root key. Per-device DM capability flags limit the attack surface.
+  \item \textbf{Social recovery}---N-of-M threshold recovery with a 7-day timelock works from the moment recovery contacts are designated.
+  \item \textbf{Per-device hash chains}---every device-signed event carries \texttt{seq} and \texttt{prev\_hash} tags, enabling integrity verification from the first event.
+  \item \textbf{Fork-detecting profile/follow merge}---the \texttt{prev} tag on replaceable events enables automatic fork detection and deterministic merge across devices.
+\end{itemize}
+
+The first Gozzip client should be adopted because it is the best Nostr client available---multi-device, better DMs, social recovery, hash chain integrity. Data sovereignty is not a gate; it is a gradient that increases as the network grows.
 
 \subsection{Design Philosophy: Transition, Not Revolution}
 
@@ -923,7 +1036,7 @@ This is where the protocol's design goals---high instant delivery, near-total re
 \textbf{Goal:} The protocol works without the internet.
 
 \begin{itemize}
-  \item \textbf{BLE mesh (Tier~0)} enables proximity exchange---two phones in the same room share events directly, relayed up to 7 hops via Bluetooth Low Energy through the FIPS transport layer (Section~\ref{sec:fips}).
+  \item \textbf{BLE mesh (Tier~0)} enables proximity exchange---two phones in the same room share events directly, relayed up to 7 hops via Bluetooth Low Energy through the FIPS transport layer (Section~\ref{sec:fips}). In practice, usable throughput is limited to 3--4 hops; the primary use case is 1-hop direct exchange.
   \item \textbf{Store-and-forward queuing:} Events created offline are queued locally (up to 1,000 events or 50~MB) and drain automatically when any transport becomes available.
   \item \textbf{FIPS integration:} The same protocol runs over UDP, Ethernet, BLE, serial radio, and Tor. The gossip layer is transport-agnostic---it operates identically whether the underlying medium is fiber optic or a radio modem (Section~\ref{sec:fips}).
   \item \textbf{Geohash discovery with ephemeral keys:} Nearby users discover each other using geohash-tagged ephemeral subkeys that are not linked to their identity, enabling proximity-based gossip without surveillance.
@@ -945,7 +1058,7 @@ The intuition that mobile devices can't participate in a storage protocol deserv
 Storage & 128--256 GB & ${<}1$ GB (power user) & 100$\times$+ \\
 Daily bandwidth & 1--5 GB (WiFi) & 4.1 MB/day (Light) & 100$\times$+ \\
 Background exec. & BGAppRefreshTask / WorkManager & Sync every 15--60 min & Native support \\
-Battery & 4,000--5,000 mAh & ${<}5\%$ daily for sync & $\approx$ push notifications \\
+Battery & 4,000--5,000 mAh & 1--3\% (bg sync only); 10--20\% (bg + BLE); 10--15\% (fg active) & Varies by mode \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -974,7 +1087,7 @@ A critical framing error would be to read this roadmap as ``relays go away.'' Th
   \item \textbf{Bootstrap infrastructure.} New users start relay-dependent. That's by design, not a failure. The Bootstrap phase (Section~\ref{sec:roadmap}) explicitly includes relay dependence, with pact formation gradually reducing it.
 \end{itemize}
 
-The protocol doesn't kill relays---it removes their monopoly on data custody. Relay operators become curators (choosing what to surface) rather than gatekeepers (deciding what exists). A relay that goes offline, changes its terms, or censors content no longer destroys the data it hosted---because that data exists on 20+ pact partners who have bilateral obligations to preserve it.
+The protocol doesn't kill relays---it removes their monopoly on data custody. Relay operators become curators (choosing what to surface) rather than gatekeepers (deciding what exists). A relay that goes offline, changes its terms, or censors content no longer destroys the data it hosted---because that data exists on 12--40 pact partners (equilibrium-seeking) who have bilateral obligations to preserve it.
 
 Critically, the relays involved are standard Nostr relays. No custom software, no vendor lock-in. Every Gozzip event kind is a valid Nostr event that any relay will accept, store, and serve. Relay operators who wish to optimize for Gozzip traffic can implement optional accelerators---oracle resolution (caching device-to-root identity mappings), checkpoint delta delivery, gossip relay forwarding, NAT hole punching---but these are performance improvements, not requirements.
 
@@ -987,15 +1100,17 @@ This roadmap is a deployment plan for a protocol validated analytically, not by 
 \begin{itemize}
   \item \textbf{Minimum viable network size for Phase~2.} At what user count does opportunistic pact retrieval deliver measurably better failure rates than relay-only? The effect should emerge early as pacts form, but real-world network density may differ from theoretical graph models.
 
-  \item \textbf{Whether the 25\% full node ratio emerges organically.} The simulation assumes 25\% of nodes are always-on (Section~\ref{sec:primitives}). In practice, this ratio depends on whether enough users run desktop clients, VPS instances, or dedicated hardware. If the ratio falls significantly below 25\%, data availability degrades. Whether social incentives (being a good pact partner earns you reliable storage from others) are sufficient to sustain this ratio is an empirical question.
+  \item \textbf{Whether a sufficient full node ratio emerges organically.} The equilibrium model shows that Keepers reach comfort at ${\sim}7$ pacts while Witnesses need ${\sim}35$---creating an asymmetric equilibrium where Keepers have no self-interested reason to accept beyond their comfort threshold. The PACT\_FLOOR of 12 addresses this structurally, but whether the resulting social incentive is sufficient in practice is an empirical question. Comparable decentralized systems achieve 0.1--5\% always-on node participation. The relay-as-Keeper integration model may help bridge this gap.
 
-  \item \textbf{Optimal challenge frequency on mobile.} Proof-of-storage challenges (Section~\ref{sec:pacts}) cost battery and bandwidth. Too frequent and mobile users drain resources; too infrequent and defection goes undetected. The current design uses exponential moving average scoring with $\alpha = 0.95$, giving a 30-day effective window, but the optimal challenge interval for mobile devices specifically has not been empirically determined.
+  \item \textbf{Optimal challenge frequency on mobile.} Proof-of-storage challenges (Section~\ref{sec:pacts}) cost battery and bandwidth. Too frequent and mobile users drain resources; too infrequent and defection goes undetected. The current design uses exponential moving average scoring with $\alpha = 0.95$, giving a 30-day effective window, but the optimal challenge interval for mobile devices specifically has not been empirically determined. Age-biased challenge distribution and channel-aware retry reduce wasted challenge traffic, but the base frequency remains a tuning parameter.
 
   \item \textbf{How CachedEndpoint tier performs in production.} Endpoint caching requires successful prior retrievals to populate the cache. In a real deployment with persistent storage across sessions, this tier should activate naturally---but its actual contribution to read performance is unknown.
 
   \item \textbf{Better retrieval algorithms.} The current retrieval cascade is a simple priority waterfall (Section~\ref{sec:retrieval}). More sophisticated approaches---predictive caching based on follow-graph activity patterns, pre-emptive gossip for likely-to-be-read content, ML-driven routing optimization---may exist by the time Phase~3 deploys. The architecture should accommodate algorithm improvements without protocol changes, and the four-tier structure is designed to be extensible.
 
   \item \textbf{Economic sustainability of full nodes.} Full nodes bear disproportionate storage and bandwidth costs. Whether the social incentive (reliable storage reciprocity) is sufficient, or whether economic incentives (micropayments, premium services) are needed, remains to be determined.
+
+  \item \textbf{Cooperative equilibrium fragility.} The cooperative equilibrium is fragile above approximately 30\% defection. If more than 30\% of nodes free-ride, the incentive to cooperate degrades for remaining honest nodes. The protocol makes defection observable through reliability scoring and creates a reach advantage for cooperators, but whether this gradient is sufficient in practice is unknown.
 \end{itemize}
 
 These gaps are not architectural blockers. The protocol's core mechanisms---pact formation, challenge-response verification, WoT-filtered gossip, tiered retrieval---are analytically sound. The unknowns are deployment parameters that require production data to resolve---engineering challenges, not architectural ones.

@@ -37,7 +37,7 @@ Add BLE (Bluetooth Low Energy) mesh as "Layer 0" in the delivery stack, interope
 - When a Gozzip event reaches another Gozzip client via the mesh, it's unwrapped and verified normally (signature check against root_identity)
 
 **BLE mesh properties (inherited from bitchat):**
-- Multi-hop relay: up to 7 hops through intermediate devices
+- Multi-hop relay: up to 7 hops through intermediate devices. While the protocol supports up to 7 relay hops, effective throughput degrades exponentially per hop (~0.15 KB/s at 7 hops). The practical maximum for usable data exchange is 3-4 hops. The primary everyday use case is 1-hop direct peer exchange.
 - Automatic peer discovery and connection management
 - Battery-optimized adaptive power cycling
 - LZ4 message compression for bandwidth optimization

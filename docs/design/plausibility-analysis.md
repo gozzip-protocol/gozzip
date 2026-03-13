@@ -99,6 +99,8 @@ Celebrity volume is lower than power users because celebrities post less frequen
 
 Not all nodes are equal. Assume **25% full nodes, 75% light nodes** (range: 20–30% full).
 
+**Keeper ratio caveat:** This is an optimistic target. Comparable systems achieve 0.1-5% always-on participation (Bitcoin full nodes: ~0.01%, Mastodon instance operators: ~2%, Nostr relays: 0.2-1%). The protocol is designed to function at full-node ratios as low as 5%. At 5% Keepers, the all-light-node availability analysis applies (P(unavailable) ≈ 0.08%), which remains acceptable.
+
 | Node type | % of network | Uptime | Storage role | Devices |
 |-----------|-------------|--------|-------------|---------|
 | Full node | ~25% | ~95% (always-on) | Reliable storage peer, full history | Desktop, home server, VPS |
@@ -255,7 +257,11 @@ F-15: P(at least 1 online) = 1 - 1.484×10⁻⁹ ≈ 100%
 F-16: E[online] = 5 × 0.95 + 15 × 0.30 = 4.75 + 4.50 = 9.25
 ```
 
-**Verdict: Even with 75% light nodes, data availability is ~100%.** The redundancy of 20 pact partners overwhelms the low uptime of individual light nodes. You need 1; you have ~11 online at any time.
+**Verdict: Even with 75% light nodes, data availability is ~100% under the independent-failure model.** The redundancy of 20 pact partners overwhelms the low uptime of individual light nodes. You need 1; you have ~11 online at any time.
+
+### Correlated Failure Analysis
+
+The independent-failure calculation above assumes pact partner outages are uncorrelated. In practice, timezone correlation (12 of 20 partners sharing a sleep schedule), community correlation (shared ISP or OS updates), and platform correlation (iOS update breaking background networking) introduce correlated failure modes. Under a conservative model with 60% timezone overlap, overnight availability degrades to approximately 10^-3 to 10^-4 -- still respectable for a peer-to-peer system, but five orders of magnitude below the independent-failure headline. The protocol recommends geographic diversity in pact selection to mitigate this. Both numbers should be presented: ~10^-9 under independence, ~10^-3 under realistic correlation.
 
 ### Standby Pact Impact
 
@@ -933,7 +939,7 @@ The protocol's numbers are plausible and well within the capability of consumer 
 
 **Gossip works at any scale** because it's WoT-routed, not random. When Bob wants Alice's data, his gossip traverses Alice's WoT neighborhood — where her storage peers live. Network size doesn't matter; WoT proximity does. The initial concern that "gossip fails at >100K" was based on a flawed random-sampling model.
 
-**The 25%/75% full/light split is viable.** Full nodes absorb ~80 pacts each (vs the 20 they directly need) — 53 MB storage, 300 MB/day outbound, well within consumer broadband. Light nodes participate when online but aren't required to be always-on. Data availability remains ~100% because 20 pact partners provide massive redundancy even with mixed node types.
+**The 25%/75% full/light split is viable, but 25% is an optimistic target.** Comparable systems achieve 0.1-5% always-on participation. The protocol is designed to function at full-node ratios as low as 5%, where the all-light-node availability analysis applies (P(unavailable) ≈ 0.08%). Full nodes absorb ~80 pacts each (vs the 20 they directly need) — 53 MB storage, 300 MB/day outbound, well within consumer broadband. Light nodes participate when online but aren't required to be always-on. Data availability remains ~100% under the independent-failure model because 20 pact partners provide massive redundancy even with mixed node types. Under realistic correlated-failure assumptions (timezone overlap, shared infrastructure), availability degrades to ~99.9-99.97% — still respectable for a peer-to-peer system.
 
 **The most sensitive parameter** is the full-node percentage. If it drops below ~15%, each full node would serve 100+ pacts and the load could become meaningful. The natural incentive (more pacts → more reach) encourages running persistent nodes, but this should be monitored.
 

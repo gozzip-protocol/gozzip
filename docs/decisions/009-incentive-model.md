@@ -5,7 +5,7 @@
 
 ## Context
 
-The network needs ecosystem-native incentives for storage peers and relays. External subscriptions or tokens create dependency on outside systems. The protocol already has reciprocal storage pacts, follow-as-commitment, guardian pacts (voluntary storage for newcomers), and zaps (kind 9734/9735), but no explicit mechanism connecting contribution to visibility. Relays need sustainable value within the ecosystem beyond being optional accelerators.
+The network needs ecosystem-native incentives for storage peers and relays. External subscriptions or tokens create dependency on outside systems. The protocol already has reciprocal storage pacts, follow-as-commitment, guardian pacts (voluntary storage for newcomers), and zaps (kind 9734/9735), but no explicit mechanism connecting contribution to visibility. Relays need sustainable value within the ecosystem as delivery infrastructure with reduced data custody.
 
 See the [full design document](../design/incentive-model.md) for detailed problem descriptions and rationale.
 

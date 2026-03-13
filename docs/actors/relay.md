@@ -21,7 +21,7 @@ Gozzip runs on unmodified Nostr relays (strfry, nostream, relay.tools, etc.). Ev
 | Capability | Who does it | How |
 |-----------|------------|-----|
 | Gossip forwarding (TTL) | Clients | Client receives Kind 10057, can't respond, decrements TTL, publishes to own relays |
-| Blinded pubkey matching | Storage peers (clients) | Each storage peer computes `H(stored_pubkey \|\| date)` and matches incoming requests |
+| Rotating request token matching | Storage peers (clients) | Each storage peer computes `H(stored_pubkey \|\| date)` and matches incoming requests |
 | WoT-only forwarding | Clients | Client checks source pubkey against local WoT graph before forwarding |
 | Rate limiting / dedup | Clients | Client enforces per-source rate limits and `request_id` LRU cache |
 | Device→root resolution | Clients | Client fetches Kind 10050, extracts device pubkeys, queries each separately |
@@ -196,7 +196,7 @@ Relays can offer premium services activated via zaps (kind 9734/9735). This is t
 ## Resolved Questions
 
 - **What are the incentives for running a relay?** — Ecosystem-native value through the three-layer incentive model. Free layer: relay-as-curator earns followers → influence → users publish through it. Lightning layer: priority delivery, extended retention, content boost, and relay-defined services paid via zaps. Different relay types (discovery, infrastructure, community) monetize their unique value differently. No external subscriptions needed — though operators can still charge if they want. See [ADR 009](../decisions/009-incentive-model.md).
-- **Do relays need to be modified for Gozzip?** — No. Standard Nostr relays work without changes. All protocol intelligence (gossip forwarding, blinded matching, WoT filtering, device resolution) lives in clients. Optimized relays can accelerate performance but are never required.
+- **Do relays need to be modified for Gozzip?** — No. Standard Nostr relays work without changes. All protocol intelligence (gossip forwarding, rotating request token matching, WoT filtering, device resolution) lives in clients. Optimized relays can accelerate performance but are never required.
 - **How much oracle logic belongs in the relay vs in a separate service?** — Oracle resolution (device → root) is a relay optimization, not a requirement. Clients can resolve it themselves by fetching Kind 10050. An optimized relay caches the mapping and indexes by `root_identity` tag for faster lookups.
 - **Relay retention policies — how long are events kept?** — Relay-defined. Since storage peers hold canonical data, relays can set aggressive retention (e.g., 30 days) without risk of data loss. Always-on relays may keep longer for discoverability. No protocol-level retention requirement.
 - **Should relays validate `root_identity` tags against kind 10050, or trust clients?** — Optional optimization. An optimized relay validates to prevent impersonation. Standard relays ignore the tag — clients verify authorship themselves via Kind 10050. Both paths work correctly.

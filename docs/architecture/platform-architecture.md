@@ -204,8 +204,10 @@ Gozzip's light node profile fits mobile well:
 |----------|-------------------|---------------|
 | Bandwidth | 4.14 MB/day (~124 MB/month) | Well within data plans |
 | Storage | ~15 MB/month (20 pacts) + 100 MB cache | Comfortable |
-| Uptime | 30% expected | Matches typical app usage |
+| Uptime | 30% expected (see note below) | Matches typical app usage |
 | CPU | Event signing, hash challenges | Negligible |
+
+**Uptime note:** The 30% figure assumes active app usage. Mobile OS constraints (iOS BGAppRefreshTask, Android Doze) limit true background uptime to 0.3-5% depending on OS version and user behavior.
 
 ### How Mobile-to-Mobile Pacts Actually Work
 
@@ -284,7 +286,7 @@ This is the safety net. It's slower but guarantees eventual consistency regardle
 
 #### The Math: Overlapping Online Windows
 
-Two mobile nodes with 30% uptime each:
+Two mobile nodes with 30% uptime each (assumes active app usage — the 30% figure assumes active app usage; mobile OS constraints limit true background uptime to 0.3-5%):
 - Probability both online simultaneously: ~9% of any given time slot
 - With 60-second ticks over 24 hours: **~130 minutes/day of overlap**
 - Challenge frequency: 1/day (configurable)
@@ -434,7 +436,7 @@ FIPS (Free Internetworking Peering System) decouples identity from transport add
 #### BLE Mesh: Offline-First Local Networks (FIPS Tier 0)
 
 Bluetooth Low Energy mesh enables phone-to-phone communication without any internet connection. The Bitchat integration design specifies:
-- BLE range: ~100m, up to 7 mesh hops
+- BLE range: ~100m, up to 7 mesh hops (practical maximum is 3-4 hops; the primary use case is 1-hop direct exchange)
 - Store-and-forward: queue up to 1,000 events or 50 MB
 - Geohash-tagged ephemeral keys for proximity discovery
 - Auto-drain queue when any transport becomes available
@@ -447,7 +449,7 @@ Bluetooth Low Energy mesh enables phone-to-phone communication without any inter
 
 **What's uncertain:**
 - iOS restricts CoreBluetooth in background — BLE mesh may only work while app is foregrounded
-- Android allows background BLE but battery drain at 7-hop mesh depth is untested
+- Android allows background BLE but battery drain at multi-hop mesh depth is untested (battery impact with BLE: 10-20%)
 - BLE bandwidth (~1 Mbit/s theoretical, ~100-200 Kbit/s practical) limits throughput
 - Mesh routing at city scale (thousands of BLE nodes) is largely unproven
 - Privacy implications of broadcasting BLE beacons continuously
@@ -863,9 +865,9 @@ This tells followers: "to reach my pact partners, connect to these relays." The 
 
 **For the minority with stable infrastructure** (desktop full nodes, proxy daemons), endpoints can include direct addresses alongside relay URLs.
 
-#### Layer 2: Blinded Gossip Discovery (Kind 10057)
+#### Layer 2: Pseudonymous Gossip Discovery (Kind 10057)
 
-When you need data from someone whose endpoint you don't have cached, you broadcast a blinded request through the gossip network:
+When you need data from someone whose endpoint you don't have cached, you broadcast a pseudonymous request through the gossip network using a rotating request token:
 
 ```json
 {
@@ -879,13 +881,13 @@ When you need data from someone whose endpoint you don't have cached, you broadc
 }
 ```
 
-- `bp` is a daily-rotating hash — observers can't link requests across days
+- `bp` is a rotating request token — computed as H(target_pubkey || YYYY-MM-DD), a daily-rotating lookup key that prevents casual cross-day linkage but is reversible by any party knowing the target's public key. Not a formal cryptographic blinding scheme.
 - Propagates through WoT (2-hop boundary, rate-limited) — **client-side forwarding, not relay logic**
-- Storage peers (other users' clients) match the blind against their stored pubkeys
+- Storage peers (other users' clients) match the token against their stored pubkeys
 - Responders reply privately via Kind 10058 with a connection endpoint
 - **Works with any standard Nostr relay** — the relay just stores and forwards the event
 
-**This doesn't require knowing anyone's IP.** The request travels through existing WebSocket connections between peers. Each peer's **client** that receives the request computes `H(stored_pubkey || date)` for pubkeys it stores. If match, it responds privately with its current address. The relay doesn't need to understand the blind — storage peers do.
+**This doesn't require knowing anyone's IP.** The request travels through existing WebSocket connections between peers. Each peer's **client** that receives the request computes `H(stored_pubkey || date)` for pubkeys it stores. If match, it responds privately with its current address. The relay doesn't need to understand the token — storage peers do.
 
 Gossip reach per request: ~400-900 unique online nodes (realistic 5K network). Since a target has ~20 pact partners, at least one is very likely to be online and reachable within 2 hops.
 
@@ -988,7 +990,7 @@ gozzip-core (Rust library)
 ├── gossip/         WoT-filtered gossip routing
 ├── feed/           3-tier feed model (Inner Circle, Orbit, Horizon)
 ├── interaction/    InteractionTracker, scoring, referrals
-├── crypto/         secp256k1 signing, checkpoint merkle, blinded requests
+├── crypto/         secp256k1 signing, checkpoint merkle, rotating request tokens
 ├── sync/           Checkpoint reconciliation, batch sync
 ├── storage/        Event storage, LRU cache, eviction
 └── types/          Event, Pact, Checkpoint, WotTier, etc.

@@ -29,7 +29,7 @@ DHTs (Kademlia, IPFS) store strangers' data with no social incentive. Lookup lat
 
 ### Why not just more relays?
 
-More relays still means dependency on third parties. The storage pact model makes users each other's infrastructure. Relays can coexist as accelerators but are not required.
+More relays still means dependency on third parties. The storage pact model makes users each other's infrastructure. Relays shift from data custodians to delivery infrastructure, but remain structurally important for new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication, and push notification delivery.
 
 ## Consequences
 
@@ -39,5 +39,5 @@ More relays still means dependency on third parties. The storage pact model make
 - Follow-as-commitment extends to storage — your WoT IS your infrastructure
 - Adds 6 new event kinds (10053–10058) for pact management and retrieval
 - Mobile devices participate when possible but aren't obligated as always-on servers
-- Relays become optional accelerators, not required infrastructure
+- Relays shift from data custodians to delivery infrastructure with reduced custody. Relays remain structurally important for: new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication (relay as mailbox), and push notification delivery
 - Gradual migration — relays still work alongside storage peers

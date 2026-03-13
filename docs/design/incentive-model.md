@@ -59,6 +59,8 @@ Relays aren't one thing. Different types provide different value.
 
 **No cliff.** There's no minimum contribution to participate. Less contribution means less reach, not exclusion.
 
+**Keeper ratio assumption:** The plausibility analysis models 25% of users running always-on full nodes (Keepers). This is an optimistic target. Comparable systems achieve 0.1-5% always-on participation (Bitcoin full nodes: ~0.01%, Mastodon instance operators: ~2%, Nostr relays: 0.2-1%). The protocol is designed to function at full-node ratios as low as 5%. At 5% Keepers, the all-light-node availability analysis applies (P(unavailable) ≈ 0.08%), which remains acceptable. The incentive loop above is designed to encourage Keeper operation organically, but the protocol must not depend on achieving 25%.
+
 ## Lightning as the Premium Layer
 
 The base layer is free. Lightning adds a premium tier — relays publish a service menu, users zap to activate services.

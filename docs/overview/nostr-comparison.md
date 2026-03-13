@@ -46,8 +46,8 @@ See [Protocol > Messages](../protocol/messages.md) for full event schemas.
 
 - **Authorship model** — events are signed by device subkeys, not the root key directly. The `root_identity` tag links them back. This enables multi-device without sharing private keys.
 - **Follow semantics** — following someone is a commitment to index their network. You keep your follows wisely because you bear the cost.
-- **Node sovereignty** — users are not fully dependent on relays. Light nodes use checkpoints to sync efficiently. Full nodes maintain complete history.
-- **Storage model** — data is stored by reciprocal WoT peers, not just relays. Relays become optional accelerators.
+- **Node sovereignty** — users have reduced relay dependency for data *storage*. Light nodes use checkpoints to sync efficiently. Full nodes maintain complete history. Relays remain structurally important for new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication, and push notification delivery.
+- **Storage model** — data is stored by reciprocal WoT peers, not just relays. Relays serve as delivery infrastructure with reduced data custody. While the protocol progressively reduces relay dependence for data *storage* (events survive on pact partners), relays remain structurally important for: new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication (relay as mailbox), and push notification delivery. The honest framing is reduced relay custody, not eliminated relay dependency.
 - **Key hierarchy** — root key moves to cold storage. Derived DM and governance keys serve specific purposes on devices. Device keys remain independent.
 - **Incentive model** — storage reliability and relay curation translate to content reach through pact-aware gossip routing. Lightning zaps provide an optional premium layer for relay services. No external subscriptions or tokens needed.
 - **Offline transport** — BLE mesh via [bitchat](https://github.com/permissionlesstech/bitchat) interop enables event exchange without internet. Nearby discovery uses ephemeral subkeys for privacy.
@@ -64,7 +64,9 @@ See [Protocol > Messages](../protocol/messages.md) for full event schemas.
 
 Gozzip is not locked to Nostr. The protocol speaks Nostr natively because Nostr has the best primitives for censorship-resistant identity, but the data belongs to users and can move between protocols.
 
-**Why this works:** Gozzip events are self-authenticating signed JSON. They can be verified, converted, and served regardless of the transport protocol. The storage layer (pacts, gossip, challenges) is independent of the event format — it stores and serves signed blobs.
+**What bridges:** Public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services. Protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable.
+
+**Why public content works:** Gozzip events are self-authenticating signed JSON. They can be verified, converted, and served regardless of the transport protocol. The storage layer (pacts, gossip, challenges) is independent of the event format — it stores and serves signed blobs.
 
 | Protocol | Bridge approach | What maps |
 |----------|----------------|-----------|

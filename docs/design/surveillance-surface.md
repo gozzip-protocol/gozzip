@@ -45,7 +45,7 @@ After hole punching, the direct connections are spread across the internet — d
 
 - **IP exposure between social contacts.** Alice's followers never connect to Alice's device. They connect to Alice's relays.
 - **Full graph visibility from any single point.** Each relay sees a slice — who publishes to it and who reads from it. No relay sees every user's full follow list or pact partner set. The same fragmentation applies to NAT hole-punch signaling.
-- **Correlation of sender and receiver.** Even within a single relay, blinded data requests (kind 10057) hide whose data is being fetched. The relay sees "someone requested data matching hash X" — not "Bob asked for Alice's events."
+- **Correlation of sender and receiver.** Even within a single relay, rotating-token data requests (kind 10057) hide whose data is being fetched. The relay sees "someone requested data matching hash X" — not "Bob asked for Alice's events." The request token is a daily-rotating lookup key computed as H(target_pubkey || YYYY-MM-DD). It prevents casual observers from linking requests across days but is trivially reversible by any party that knows the target's public key.
 - **Pact topology mapping from signaling.** NAT hole-punch signaling is distributed across relays following the outbox model. Each relay sees a fraction of a user's pact connections — not the full set.
 
 ### What the outbox model does not prevent
@@ -82,7 +82,7 @@ After hole punching, the direct connections are spread across the internet — d
 
 **What a relay operator does NOT see:**
 - Who this user's pact partners are with certainty (NIP-46 payloads are encrypted — but timing correlation provides probabilistic evidence)
-- Whose data is being requested in blinded requests (hash rotation daily)
+- Whose data is being requested in rotating-token data requests (token rotation daily)
 - The user's full follow list (only the follows fetched through this specific relay)
 - Content of DMs (NIP-44 encrypted)
 
@@ -118,7 +118,7 @@ After hole punching, the direct connections are spread across the internet — d
 - Full follow list (only the portion fetched through this relay)
 - Pact topology with certainty (timing correlation is partial and probabilistic)
 - Content of DMs
-- Blinded request targets
+- Rotating-token request targets
 
 **Risk profile:** Lower than full nodes. Dynamic IPs make network-level mapping harder. Shorter sessions mean less data for timing analysis. The main risk is relay-side read pattern inference — if this client always fetches the same 30 pubkeys from the same relay, the relay can infer the follow list over time. Mitigation: spread follows across multiple relays, batch fetches.
 
@@ -166,14 +166,14 @@ After hole punching, the direct connections are spread across the internet — d
 ### Passive network observer (ISP, backbone tap)
 
 **Sees:** IP connections to relay servers. Traffic volume and timing. If NAT hole punching is used: direct connections to peer IPs (fragmented across ISPs by the outbox model).
-**Does not see:** Content, social graph, pubkeys, blinded requests. Whether direct connections are pact relationships or something else.
+**Does not see:** Content, social graph, pubkeys, rotating-token requests. Whether direct connections are pact relationships or something else.
 **Can infer:** That someone uses Gozzip (relay connection fingerprinting). Which relays they use. That direct peer connections exist (but not their application-layer purpose).
 **To go further, needs:** Relay operator cooperation or traffic analysis across ISPs.
 
 ### Single relay operator
 
-**Sees:** IP addresses of connecting clients. Pubkeys that publish to them. Clients that fetch from them. Encrypted NIP-46 blobs. Blinded data request hashes. Timing of all operations.
-**Does not see:** Content of encrypted events. Pact topology. Full social graph. Blinded request targets.
+**Sees:** IP addresses of connecting clients. Pubkeys that publish to them. Clients that fetch from them. Encrypted NIP-46 blobs. Rotating-token data request hashes. Timing of all operations.
+**Does not see:** Content of encrypted events. Pact topology. Full social graph. Rotating-token request targets.
 **Can infer:** Partial follow relationships (from read patterns over time). Approximate posting frequency per pubkey. Possible pact pairings (from NIP-46 store/fetch timing correlation).
 **To go further, needs:** Cooperation with other relay operators to merge partial views.
 
@@ -181,7 +181,7 @@ After hole punching, the direct connections are spread across the internet — d
 
 **Sees:** Merged view of multiple relays. IP addresses of all their respective clients. Broader read/write patterns. Combined NIP-46 timing data.
 **Can infer:** More complete follow graphs. Cross-relay activity patterns. Stronger pact pairing candidates (from merged NIP-46 timing across relays).
-**Still cannot see:** Encrypted content. Blinded request targets (hash rotates daily, different per relay interaction). Pact partner identities with certainty (NIP-46 encrypted — timing correlation is probabilistic, not definitive).
+**Still cannot see:** Encrypted content. Rotating-token request targets (token rotates daily, different per relay interaction). Pact partner identities with certainty (NIP-46 encrypted — timing correlation is probabilistic, not definitive).
 **To go further, needs:** Break NIP-44/NIP-46 encryption or compromise user devices.
 
 ### Physical proximity attacker (BLE scanning)
@@ -213,7 +213,7 @@ After hole punching, the direct connections are spread across the internet — d
 
 1. **No single point of full visibility.** No relay, ISP, or peer sees the complete picture. Reconstruction requires active collaboration between multiple adversary types.
 
-2. **Blinding degrades over time, but rotates.** Blinded pubkey hashes rotate daily. An adversary who cracks today's blind starts fresh tomorrow.
+2. **Rotating tokens degrade over time, but rotate daily.** The pseudonymous request token is computed as H(target_pubkey || YYYY-MM-DD). It prevents casual observers from linking requests across days but is trivially reversible by any party that knows the target's public key. An adversary who computes today's token starts fresh tomorrow — but the barrier is knowing which pubkey to target, not the computation itself. **Day-boundary linkage:** Storage peers match requests against both today's and yesterday's date to handle clock skew (see ADR 008, §9). A storage peer that logs matched tokens can link a request using yesterday's token to a request using today's token for the same target — confirming continuity across the day boundary. The protocol accepts this linkage as a trade-off for usability; the rotating token is a casual-observer deterrent, not a cryptographic blinding scheme.
 
 3. **The outbox model is the primary defense.** By routing all traffic through relays, the protocol prevents direct IP exposure between social contacts. The relay sees partial metadata; the network sees only relay connections.
 

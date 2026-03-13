@@ -7,7 +7,7 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 - **Root identity** — secp256k1 keypair, same as Nostr. The user's permanent identity.
 - **Device subkeys** — per-device keypairs, plus derived DM and governance keys. Authorized by root key via kind 10050.
 - **Relays** — store and forward events. Standard Nostr relays work without modification. Optimized relays can optionally resolve device → root identity for faster queries.
-- **Clients** — user-facing apps (mobile, desktop, web, browser extension). Sign events with device keys. Handle all protocol intelligence: gossip forwarding, blinded matching, WoT filtering, device resolution.
+- **Clients** — user-facing apps (mobile, desktop, web, browser extension). Sign events with device keys. Handle all protocol intelligence: gossip forwarding, rotating request token matching, WoT filtering, device resolution.
 - **Storage peers** — WoT peers that hold your recent events via reciprocal pacts. Serve your data when your devices are offline.
 - **Bridges** — connect to other networks (Nostr, ActivityPub, etc.)
 
@@ -38,10 +38,10 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 
 ## Design Principles
 
-- **User sovereignty** — users are not dependent on relays. They index their own social graph. Data is self-authenticating and portable across protocols.
+- **User sovereignty** — users have reduced relay dependency for data *storage* through reciprocal pacts. Relays remain structurally important for: new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication (relay as mailbox), and push notification delivery. Users index their own social graph. Data is self-authenticating and portable.
 - **Follow-as-commitment** — following costs you indexing resources. You curate wisely.
 - **Nostr-native** — existing keys, events, and relays work from day one. No relay modifications needed.
-- **Protocol-portable** — signed events can be converted to ActivityPub, AT Protocol, and other decentralized formats. Users own their data, not the protocol.
+- **Protocol-portable** — public content (posts, reactions, reposts) can be exported to ActivityPub, AT Protocol, and RSS/Atom via bridge services. Protocol-specific features (pacts, WoT routing, device delegation, encrypted DMs) are not bridgeable. Users own their data, not the protocol.
 - **Light by default** — checkpoints enable light nodes. Full history is opt-in.
 - **Device isolation** — compromise one device, revoke it. Identity survives.
 - **Emergent incentives** — contribution to the network (storage, curation) translates to content reach through pact-aware gossip routing. No tokens or subscriptions.
@@ -60,3 +60,4 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 | Kind 10060–10061 | Social recovery (recovery delegation + attestation) |
 | Key derivation | KDF for DM key, governance key from root |
 | Per-event chain | seq + prev_hash on device-signed events |
+| Reference library | `gozzip-core` — Rust library encapsulating pact management, gossip routing, WoT computation, challenge-response, and tiered retrieval. TypeScript bindings via WASM. Client developers import the library rather than re-implementing the protocol stack. This is a mandatory deliverable — without it, third-party client development is impractical given the protocol's 20+ client-side systems. |

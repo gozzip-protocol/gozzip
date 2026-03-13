@@ -44,7 +44,9 @@ Named roles that participants can hold in the network. A single user may hold mu
 
 **Pact-aware gossip routing** — Gossip forwarding prioritized by social proximity: active pact partners first, then 1-hop WoT, then 2-hop WoT. Unknown pubkeys are never forwarded.
 
-**Blinded data request** — A data request (kind 10057) using `bp = H(target_pubkey || YYYY-MM-DD)` instead of a raw pubkey. Prevents surveillance of who reads whom. Rotates daily.
+**Rotating request token** — A daily-rotating pseudonymous lookup key `H(target_pubkey || YYYY-MM-DD)` used in data requests (kind 10057). Prevents casual cross-day request linkage but is reversible by any party that knows the target's public key. Not a formal cryptographic blinding scheme.
+
+**Data availability verification** — The challenge-response mechanism used to verify that pact partners can produce stored data on demand. Proves accessibility within the response window, not persistent local storage.
 
 **Three-phase adoption** — Client behavior adapts based on pact count: Bootstrap (0–5 pacts, relay-primary), Hybrid (5–15, mixed), Sovereign (15+, peer-primary).
 
@@ -60,7 +62,7 @@ Event retrieval follows a cascade of increasingly expensive paths:
 |------|------|-------------|
 | 0 | **BLE mesh** | Nearby devices serve events via Bluetooth Low Energy. No internet required. |
 | 1 | **Cached endpoints** | Direct connection to known storage peer endpoints (kind 10059). Zero broadcast overhead. |
-| 2 | **Gossip** | Blinded data request (kind 10057) broadcast to WoT peers, TTL=3. |
+| 2 | **Gossip** | Pseudonymous data request via rotating request token (kind 10057) broadcast to WoT peers, TTL=3. |
 | 3 | **Storage peers via DVM** | Traditional kind 10057 broadcast through relay infrastructure. |
 | 4 | **Relay fallback** | Traditional relay query as last resort. |
 

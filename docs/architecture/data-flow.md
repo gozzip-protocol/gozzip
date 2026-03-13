@@ -160,7 +160,9 @@ Client behavior adapts with pact count: bootstrap phase (0–5, relay-primary), 
 Bob wants Alice's events (Alice's devices are offline)
   │
   ├─ Publishes kind 10057 (data request):
-  │    bp = H(Alice's pubkey || YYYY-MM-DD)
+  │    bp = H(Alice's pubkey || YYYY-MM-DD)  ← rotating request token (daily-rotating
+  │         lookup key; prevents casual cross-day linkage but is reversible by any
+  │         party knowing Alice's public key — not a cryptographic blinding scheme)
   │    since = last known checkpoint
   │
   ├─ Alice's storage peers (other users' clients) are subscribed via relay
@@ -187,7 +189,7 @@ Bob wants Alice's events
   ├─ Layer 0: BLE mesh (if enabled)
   │   ├─ Check if any nearby devices have Alice's events via BLE
   │   ├─ Noise Protocol encrypted session between mesh peers
-  │   ├─ Multi-hop relay up to 7 hops through intermediate devices
+  │   ├─ Multi-hop relay up to 7 hops through intermediate devices (practical maximum is 3-4 hops; the primary use case is 1-hop direct exchange)
   │   ├─ Interop with bitchat mesh network
   │   └─ If BLE responds → done
   │

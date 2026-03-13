@@ -26,33 +26,34 @@ Cold start is addressed through two complementary mechanisms — bootstrap pacts
 
 ## Decision
 
-Address all 13 risks. Only 4 require protocol changes; the remaining 9 are client-side logic.
+Address all 13 risks plus one additional hardening measure. 5 require protocol changes; the remaining 9 are client-side logic.
 
 ### Protocol changes
 
 1. **Merkle root in checkpoint** — add `merkle_root` tag to kind 10051, enabling completeness verification
 2. **Pact type variants** — add `type` tag to kind 10053 (`bootstrap`, `archival`, `guardian`) and `status` tag (`standby`)
 3. **Serve challenge mode** — add `type` tag to kind 10054 (`hash`, `serve`) for latency-based fraud detection
-4. **Blinded data requests** — replace `p` tag in kind 10057 with `bp` (blinded pubkey) using daily-rotating hash
+4. **Pseudonymous data requests** — replace `p` tag in kind 10057 with `rt` (rotating request token) using daily-rotating hash. This is a daily-rotating lookup key computed as `H(target_pubkey || YYYY-MM-DD)`. It prevents casual observers from linking requests across days but is trivially reversible by any party that knows the target's public key.
+5. **Challenge age bias** — challenge range selection SHOULD be biased toward older data. A recommended distribution: 50% of challenges target data older than 30 days, 30% target data 7-30 days old, 20% target data from the last 7 days. This counters the selective deletion strategy where a peer deletes old (rarely challenged) data while maintaining high reliability scores on recent data.
 
 ### Client-side mitigations (no protocol changes)
 
-5. WoT cluster diversity for peer selection (eclipse prevention)
-6. Peer reputation scoring (identity age, challenge success rate)
-7. Graduated reliability scoring (replace binary pass/fail)
-8. Popularity-scaled pact counts (serving asymmetry)
-9. Per-peer request rate limiting (serving asymmetry)
-10. Warm standby pact promotion (rebalancing window)
-11. Pact offer WoT/age/volume filtering (spam prevention)
-12. Independent checkpoint Merkle verification (checkpoint trust)
-13. Jittered response coordination (response flooding)
+6. WoT cluster diversity for peer selection (eclipse prevention)
+7. Peer reputation scoring (identity age, challenge success rate)
+8. Graduated reliability scoring (replace binary pass/fail)
+9. Popularity-scaled pact counts (serving asymmetry)
+10. Per-peer request rate limiting (serving asymmetry)
+11. Warm standby pact promotion (rebalancing window)
+12. Pact offer WoT/age/volume filtering (spam prevention)
+13. Independent checkpoint Merkle verification (checkpoint trust)
+14. Jittered response coordination (response flooding)
 
 ## Consequences
 
 - Completeness is now provable — requesters can verify they received all events
 - New users can bootstrap via first-follow temporary pacts
 - Eclipse attacks require penetrating multiple WoT clusters
-- Data request privacy preserved via blinded identifiers
-- 9 of 13 mitigations are client-side only — backward compatible, incrementally adoptable
-- 4 schema additions are additive — old clients ignore new tags
+- Data request privacy partially preserved via rotating request tokens (pseudonymous lookup keys — not cryptographic blinding; trivially reversible by any party that knows the target's public key)
+- 9 of 14 mitigations are client-side only — backward compatible, incrementally adoptable
+- 5 protocol changes are additive — old clients ignore new tags
 - Guardian pacts provide a second cold-start mitigation path alongside bootstrap pacts — newcomers can receive storage from a volunteer *Guardian* before forming any WoT edges

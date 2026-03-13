@@ -17,16 +17,23 @@ The root key on every device is a single point of failure.
 
 ## Decision
 
-Move the root key to cold storage and derive purpose-specific keys:
+Move the root key to cold storage and derive purpose-specific keys using HKDF-SHA256 (RFC 5869):
+
+**KDF specification:**
+- IKM: root private key (32 bytes)
+- Salt: `gozzip-v1` (fixed protocol constant)
+- Info: purpose label string (e.g., `device-0`, `dm`, `governance`)
+- Output: 32 bytes, interpreted as secp256k1 scalar (reduced mod n; retry with incremented counter if result is zero)
 
 ```
 Root key (cold storage — hardware wallet, air-gapped, or secure enclave)
 │
-├── DM key = KDF(root, "dm-decryption-" || rotation_epoch)
-│   └── On DM-capable devices only — decrypts DMs. Rotates every 90 days.
+├── DM key = HKDF-SHA256(root, "dm-decryption-" || rotation_epoch)
+│   └── On DM-capable devices only — decrypts DMs. Rotates every 90 days (default; configurable).
 │
-├── Governance key = KDF(root, "governance")
+├── Governance key = HKDF-SHA256(root, "governance")
 │   └── On trusted devices only — signs kind 0 (profile), kind 3 (follows)
+│       Supports event-driven rotation if compromise is suspected.
 │
 ├── Device subkeys (independent per-device)
 │   └── Sign kind 1, 6, 7, 9, 14, 30023 — day-to-day events
@@ -37,6 +44,14 @@ Root key (cold storage — hardware wallet, air-gapped, or secure enclave)
 ```
 
 Kind 10050 is extended with `dm_key`, `governance_key`, and `checkpoint_delegate` tags to publish derived key public keys. DMs encrypt to the `dm_key` pubkey instead of the root pubkey.
+
+### Governance Key Rotation
+
+The governance key supports rotation via a signed rotation event (kind TBD). The current governance key signs an event containing the new governance key's public key. Nodes verify the chain: root → old governance → new governance. Rotation should be performed if governance key compromise is suspected. Unlike the DM key (which rotates on a schedule), governance key rotation is event-driven.
+
+### DM Key Rotation Period
+
+The DM key rotation period defaults to 90 days. Users in high-threat environments may reduce this to 30 days for a smaller exposure window on device compromise. The trade-off is more frequent key distribution events (kind 10050 updates). The rotation epoch is computed as `floor(unix_timestamp / (rotation_period * 86400))`.
 
 ## Rejected Alternative: Root Key on All Devices
 
