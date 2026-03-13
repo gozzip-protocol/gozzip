@@ -560,7 +560,7 @@ A critical property emerges from the retrieval protocol: \textbf{reads create re
 This creates cascading read-caches that replicate popular content across the follower base:
 
 \begin{enumerate}
-  \item Alice's 20 pact partners hold her events.
+  \item Alice's pact partners hold her events.
   \item Each of Alice's followers who reads her events becomes an informal cache.
   \item Subsequent readers find the data closer in the social graph.
   \item Load scales with $O(\text{followers})$, not $O(\text{pact\_partners})$.
@@ -980,7 +980,7 @@ The transition follows three principles:
   \item \textbf{Hardware trends are an ally.} What costs 10~MB/day and 5\% battery today will cost nothing in three years. Mobile storage doubles every two years. 5G bandwidth is becoming ubiquitous. The protocol should be designed for the devices that will exist at deployment, not the devices that exist during simulation. Constraints that feel tight today will be invisible by the time Phase~3 deploys.
 \end{enumerate}
 
-A critical framing: not everyone needs to be a full node. Full nodes don't need 100\% uptime. The protocol's redundancy model means your data has \emph{someone} holding it when you're offline---and with 20 pact partners, the probability that all of them are simultaneously unavailable is effectively zero (Section~\ref{sec:retrieval}). The goal is not universal participation at maximum capacity; it is sufficient redundancy across realistic participation patterns.
+A critical framing: not everyone needs to be a full node. Full nodes don't need 100\% uptime. The protocol's redundancy model means your data has \emph{someone} holding it when you're offline---and with 12--40 pact partners (equilibrium-seeking), the probability that all of them are simultaneously unavailable is effectively zero (Section~\ref{sec:retrieval}). The goal is not universal participation at maximum capacity; it is sufficient redundancy across realistic participation patterns.
 
 \subsection{Phase 1: Decentralize Storage}
 

@@ -1,10 +1,10 @@
 # Equilibrium-Seeking Pact Formation
 
-How the protocol determines the right number of pacts for each user, replacing fixed targets with a mathematically-derived equilibrium.
+How the protocol determines the right number of pacts for each user through a mathematically-derived equilibrium.
 
-## Problem
+## Motivation
 
-The original pact topology prescribed fixed targets based on follower count (10/20/30/40+). This is arbitrary — a user with 20 pacts of Keepers (95% uptime) has vastly different availability than a user with 20 pacts of Witnesses (30% uptime). The protocol should form pacts until it reaches a measurable comfort threshold, then stop.
+A fixed pact count cannot capture the availability reality of a heterogeneous network. A user with 20 pacts of Keepers (95% uptime) has vastly different availability than a user with 20 pacts of Witnesses (30% uptime). The protocol forms pacts until it reaches a measurable comfort threshold, then stops. The pact count is an emergent property of each user's specific partner composition.
 
 ## Comfort Condition
 
@@ -171,20 +171,7 @@ Where K_avail is the availability-driven K, R_peak is peak request rate, and S i
 - Above 5K followers: throughput dominates, more pacts needed for serving capacity
 - Cascading read-caches handle the tail beyond K_eff
 
-## Replacing the Fixed Pact Table
-
-The old "Followers → Active Pacts" table is replaced by the equilibrium model:
-
-**Old (prescriptive):**
-
-| Followers | Active Pacts |
-|---|---|
-| < 100 | 10 |
-| 100–1,000 | 20 |
-| 1,000–10,000 | 30 |
-| 10,000+ | 40+ |
-
-**New (emergent):**
+## Protocol Parameters
 
 | Parameter | Value |
 |---|---|
@@ -195,7 +182,7 @@ The old "Followers → Active Pacts" table is replaced by the equilibrium model:
 | Comfort check | ∀h: P(X_h < K) ≤ ε |
 | Equilibrium count | Emerges from pact composition |
 
-The protocol keeps forming pacts until comfortable, stops, and only dissolves when significantly over-provisioned. The actual pact count is an emergent property of the user's specific partner mix — not a prescribed table lookup.
+The protocol keeps forming pacts until comfortable, stops, and only dissolves when significantly over-provisioned. The actual pact count is an emergent property of the user's specific partner mix.
 
 ## Cold Start
 
