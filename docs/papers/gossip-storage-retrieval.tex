@@ -242,14 +242,13 @@ Pastor-Satorras and Vespignani~\cite{pastor-satorras} proved that the epidemic t
 
 This means any non-zero transmission rate produces epidemic spreading across the entire network. For gossip protocols, this is a double-edged result: gossip \emph{will} spread efficiently (good for retrieval), but so will spam, misinformation, and attack traffic (bad for security).
 
-The protocol resolves this tension by restricting gossip propagation to the WoT boundary (2-hop maximum). Castellano and Pastor-Satorras~\cite{castellano} showed that the epidemic threshold on a bounded-degree subgraph is governed by the spectral radius $\lambda_1$ of the adjacency matrix:
-\begin{equation}
-  \lambda_c = \frac{1}{\lambda_1} \geq \frac{1}{\sqrt{k_{\max}}}
-\end{equation}
+The protocol resolves this tension through two complementary mechanisms: a \emph{social} restriction (WoT-only forwarding) and a \emph{structural} restriction (TTL=3 hop limit). Together, these restore a non-zero epidemic threshold on a network that would otherwise have none.
 
-When gossip is confined to a 2-hop WoT neighborhood, the effective maximum degree $k_{\max}$ is bounded by Dunbar-layer sizes (${\sim}150$), giving $\lambda_c \geq 1/\sqrt{150} \approx 0.08$---a finite, non-trivial threshold. Content that falls below this spreading rate dies out locally rather than propagating globally.
+The vanishing threshold above is precisely what the WoT boundary defends against. On the unrestricted scale-free graph, any gossip message---including spam and attack traffic---would reach epidemic prevalence regardless of its transmission rate. The WoT restriction changes the effective propagation topology: a node forwards gossip only to peers within its Web of Trust, so the relevant adjacency matrix is not the full social graph but the \emph{realized WoT subgraph} induced by mutual-follow and trust-scored relationships. Castellano and Pastor-Satorras~\cite{castellano} showed that the epidemic threshold is governed by the spectral radius $\lambda_1$ of this effective adjacency matrix ($\lambda_c = 1/\lambda_1$). Because WoT-restricted forwarding removes the long-range shortcuts that hub nodes would otherwise provide to arbitrary traffic, the spectral radius of the WoT subgraph is substantially smaller than that of the full network, yielding a finite, non-trivial threshold.
 
-This creates a \textbf{dual regime}: within the WoT boundary, gossip spreads efficiently (approaching the scale-free guarantee); beyond the boundary, propagation requires relay assistance. The protocol's four-tier retrieval cascade (Section~\ref{sec:retrieval}) is the operational implementation of this theoretical boundary: Tiers 1--3 exploit intra-WoT epidemic spreading, while Tier 4 (relay fallback) handles the inter-community gap.
+Crucially, this threshold depends on the \emph{global} structure of the realized WoT topology---not on a local degree cap. Hub nodes within any given node's 2-hop neighborhood may still have high degree, but they will only forward content that originates from or is endorsed by their own WoT. The TTL=3 hop limit provides an independent bound: regardless of the WoT subgraph's spectral properties, no single gossip message can propagate beyond three forwarding hops, which caps the reachable set for any originating node and prevents runaway cascades even in densely connected WoT clusters.
+
+This creates a \textbf{dual regime}: within the WoT boundary, gossip spreads efficiently among nodes with established trust relationships (approaching the scale-free guarantee for legitimate content); beyond the boundary, propagation requires relay assistance. The protocol's four-tier retrieval cascade (Section~\ref{sec:retrieval}) is the operational implementation of this theoretical boundary: Tiers 1--3 exploit intra-WoT epidemic spreading, while Tier 4 (relay fallback) handles the inter-community gap.
 
 \subsection{Triadic Closure and 2-Hop WoT Effectiveness}
 
