@@ -356,6 +356,8 @@ The weighted average event size under the default content mix is:
   \mathbb{E}[\text{size}] = \sum_{k} \text{size}_k \cdot \text{mix}_k = 800(0.40) + 500(0.30) + 600(0.15) + 900(0.10) + 5500(0.05) = 925 \text{ bytes}
 \end{equation}
 
+This calculation covers text events only. Media (images, video, audio) is stored separately via content-addressed hash references in \texttt{media} tags, keeping event sizes small regardless of media attachment count. See Section~\ref{sec:pacts} (Media References) for details.
+
 \subsection{Checkpoints}
 
 Checkpoints (kind 10051) are periodic reconciliation markers published by each user. A checkpoint contains:
@@ -572,6 +574,8 @@ The read cache is bounded (default 100MB) and LRU-evicted.
 \textbf{Media retrieval} follows the same cascade but at a per-file level. Clients first check local cache, then try the URL hint in the \texttt{media} tag, then query media pact partners (if any), then fall back to IPFS or relay-hosted caches. Hash verification ensures integrity regardless of source.
 
 \textbf{Content discovery beyond the WoT} is intentionally relay-dependent. Content from authors outside the 2-hop WoT boundary is discoverable through relay queries (Tier~4). Clients subscribe to hashtag-filtered feeds from relays, which serve as curated discovery endpoints. The WoT boundary provides spam resistance and storage efficiency for the pact layer; relays serve the orthogonal function of broad content discovery.
+
+This means content discovery is \emph{permanently} relay-dependent---not a transitional artifact of the bootstrap phase. The protocol provides no decentralized mechanism for discovering content or authors outside the user's WoT. Relay dependency for content retrieval (fetching known authors' events) decays as pact coverage grows, but discovery remains a relay function indefinitely.
 
 \subsection{Rotating Request Tokens and Privacy}
 
@@ -821,7 +825,7 @@ Secure Scuttlebutt (SSB)~\cite{ssb} proved the viability of gossip-based social 
 
 \subsection{Proof of Storage}
 
-The challenge-response proof of storage mechanism draws from Filecoin's Proof of Replication and Proof of Spacetime~\cite{filecoin}, and Arweave's Succinct Proofs of Random Access~\cite{arweave}. Our protocol uses simpler primitives because the threat model is different: pact partners are WoT peers with social incentive to maintain the relationship, not anonymous miners requiring cryptoeconomic guarantees.
+The challenge-response mechanism draws from Filecoin's Proof of Replication and Proof of Spacetime~\cite{filecoin}, and Arweave's Succinct Proofs of Random Access~\cite{arweave}. Our mechanism proves that the pact partner \emph{possesses} the data at challenge time. Unlike Filecoin's PoRep, it does not prove continuous or dedicated storage---a malicious partner could theoretically re-fetch data before responding. The 500ms latency check on serve challenges is a weak heuristic against this strategy. This is a deliberate trade-off: social trust (WoT peers with relationship incentive) reduces the need for cryptoeconomic enforcement, at the cost of being less robust against adversarial pact partners than Filecoin's scheme.
 
 \subsection{FIPS and Mesh Networking}
 
@@ -950,7 +954,7 @@ The protocol addresses practical deployment concerns alongside the core architec
 
 The honest assessment: this architecture does not eliminate the need for always-on infrastructure. Full nodes---\emph{Keepers}---(an estimated 5--25\% of the network) are the protocol's equivalent of reliable friends who are always available. The difference is structural: these nodes operate under bilateral obligations enforced by challenge-response, not under unilateral control of a platform operator. The infrastructure exists, but it is owned by the social graph.
 
-The hard problems remain. Graph bootstrap for new users requires initial relay dependence. A sufficient full-node ratio (at least 5\%) must emerge organically through incentives, not be mandated. DM key rotation provides bounded forward secrecy but not perfect. These are engineering challenges, not architectural ones---the social graph is a viable foundation for decentralized infrastructure.
+The hard problems remain. Graph bootstrap for new users requires initial relay dependence and Genesis Guardian infrastructure (see design documentation). A sufficient full-node ratio (at least 5\%) must emerge organically through incentives, not be mandated. DM key rotation provides bounded forward secrecy but not perfect---contingent on correct client implementation of secure key deletion. Social recovery (kinds 10060/10061) is a pre-launch requirement, not a future enhancement: without it, root key loss is permanent identity death. These are engineering challenges, not architectural ones---the social graph is a viable foundation for decentralized infrastructure.
 
 % ============================================================
 \section{Implementation Roadmap}
@@ -1059,8 +1063,8 @@ The intuition that mobile devices can't participate in a storage protocol deserv
 \toprule
 \textbf{Resource} & \textbf{Available} & \textbf{Protocol Requires} & \textbf{Margin} \\
 \midrule
-Storage & 128--256 GB & ${<}1$ GB (power user) & 100$\times$+ \\
-Daily bandwidth & 1--5 GB (WiFi) & 4.1 MB/day (Light) & 100$\times$+ \\
+Storage & 128--256 GB & 200--500 MB (power user, incl.\ indexes) & 25--100$\times$ \\
+Daily bandwidth & 1--5 GB (WiFi) / 2--5 GB (cellular) & 4.1 MB/day (Light) & 100$\times$+ (WiFi), 20--50$\times$ (cellular) \\
 Background exec. & BGAppRefreshTask / WorkManager & Sync every 15--60 min & Native support \\
 Battery & 4,000--5,000 mAh & 1--3\% (bg sync only); 10--20\% (bg + BLE); 10--15\% (fg active) & Varies by mode \\
 \bottomrule
