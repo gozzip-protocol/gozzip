@@ -275,7 +275,7 @@ Encrypted message to followers containing current storage peer endpoints. Sent w
 
 Parameterized replaceable event — one per recovery contact. Designates a trusted WoT member as a recovery contact for social recovery of the root key. See [ADR 008](../decisions/008-protocol-hardening.md).
 
-Recovery delegation events (kind 10060) MUST encrypt the recovery contact set. The `d` tag contains a blinded identifier `H(recovery_contact_pubkey || owner_pubkey)` rather than the plaintext pubkey. The `threshold` and `total` values MUST be placed in NIP-44 encrypted content, not in public tags. Only the recovery contact and the identity owner can determine the relationship exists. This prevents an attacker from enumerating the recovery set and targeting specific contacts.
+Recovery delegation events (kind 10060) MUST encrypt the recovery contact set. The `d` tag contains a pseudonymous identifier `H(recovery_contact_pubkey || owner_pubkey)` rather than the plaintext pubkey. The `threshold` and `total` values MUST be placed in NIP-44 encrypted content, not in public tags. Only the recovery contact and the identity owner can determine the relationship exists. This prevents an attacker from enumerating the recovery set and targeting specific contacts.
 
 ```json
 {
@@ -288,7 +288,7 @@ Recovery delegation events (kind 10060) MUST encrypt the recovery contact set. T
 }
 ```
 
-- `d` tag — `H(recovery_contact_pubkey || owner_pubkey)`, a blinded identifier (parameterized replaceable key). Neither the recovery contact's identity nor the relationship is visible to third parties.
+- `d` tag — `H(recovery_contact_pubkey || owner_pubkey)`, a pseudonymous identifier (parameterized replaceable key). Neither the recovery contact's identity nor the relationship is visible to third parties.
 - `threshold` and `total` — placed in NIP-44 encrypted content to prevent attackers from learning the recovery scheme parameters
 - `content` — encrypted instructions, threshold, and total for the recovery contact
 - Signed by root key — only the identity owner can designate recovery contacts

@@ -215,7 +215,7 @@ NIP-59 gift wraps expose both sender and recipient to the relay operator. The se
 **Mitigation options (not yet implemented):**
 - DM relay rotation — use different relays for DMs to different recipients
 - Batch DM delivery — queue and publish in fixed intervals to degrade timing precision
-- Consider blinded recipient identifiers for DM routing (requires recipients to poll rather than relay-route)
+- Consider pseudonymous recipient identifiers for DM routing (requires recipients to poll rather than relay-route)
 
 ## Summary table
 
