@@ -22,7 +22,7 @@
 
 **Multi-device: Real improvement.** Nostr's current multi-device story is genuinely poor. Sharing a private key across devices is a security anti-pattern. NIP-26 (delegated event signing) exists but has limited adoption. Gozzip's root/governance/device key hierarchy with kind 10050 delegations is a cleaner design. Credit due.
 
-**Storage sovereignty: Real but overstated.** The 10^-9 unavailability probability is mathematically correct given the assumptions (20 pacts, 25% full nodes at 95% uptime, 75% light at 30% uptime). But the assumptions do heavy lifting. The probability assumes pact partner failures are independent -- in practice, correlated failures (ISP outage, operating system update, regional power outage) can take down multiple partners simultaneously. More critically, the protocol requires users to *maintain* 20 bilateral relationships with volume-matched peers. This is non-trivial socially. The volume-matching constraint (30% tolerance) means a power user posting 100 events/day can only form pacts with other power users in a similar activity band. This creates a matching market problem that the whitepaper waves past.
+**Storage sovereignty: Real but overstated.** The protocol requires users to *maintain* 20 bilateral relationships with volume-matched peers. This is non-trivial socially. The volume-matching constraint (30% tolerance) means a power user posting 100 events/day can only form pacts with other power users in a similar activity band. This creates a matching market problem that the whitepaper waves past.
 
 **Read privacy: Real improvement over Nostr relays.** Nostr relays see every subscription filter -- they know exactly who is reading whose content. Gozzip's blinded pubkeys (hash of target pubkey + daily salt) prevent gossip peers from identifying the requester. This is a genuine privacy gain over the relay model. However, the daily rotation means an observer who sees the same blinded pubkey twice in one day can link the requests. For high-threat environments, this is insufficient (see Section 5).
 
@@ -64,8 +64,6 @@
 **Bounded replication: Real and important.** SSB's fundamental failure mode was unbounded replication -- a pub server that followed popular accounts would replicate the entire reachable graph, consuming storage unboundedly. Gozzip's 2-hop WoT boundary and volume-matched pacts directly address this. The 30-day checkpoint window for light nodes provides a hard storage cap. A light node storing data for 20 active-profile partners uses about 15 MB -- manageable on any modern device. This is a genuine structural improvement over SSB.
 
 **Bilateral pacts vs. pubs: Real but creates different constraints.** SSB pubs failed because they bore asymmetric costs -- replicate everyone's data, serve it to anyone, receive nothing in return. Gozzip's bilateral pacts enforce reciprocity, which is structurally sounder. However, the volume-matching constraint creates a different problem: it creates a matching market where users must find peers with similar activity levels. A casual user (5 events/day, 112 KB/month) cannot form pacts with a power user (100 events/day, 2.2 MB/month) because the volume imbalance exceeds 30%. This segments the network by activity level. SSB had no such constraint -- a pub would replicate anyone. Gozzip's constraint is more sustainable but more exclusive.
-
-The guardian pact mechanism (an established user volunteers to store a newcomer's data) partially addresses this, but guardians are limited to one seedling each and expire after 90 days. If the newcomer does not build sufficient WoT connections in 90 days, they lose their guardian and may lack storage peers entirely.
 
 **Key model: Real improvement.** SSB's device-bound feeds were a genuine limitation -- losing a device meant losing the feed. Gozzip's root key in cold storage with device subkeys is architecturally superior for key management and device compromise recovery.
 
@@ -199,13 +197,10 @@ The whitepaper does not directly compare to Briar, but the bitchat-integration.m
 
 Gozzip's surveillance resistance is substantially weaker:
 
-- **Relay metadata leakage.** During bootstrap and hybrid phases, users interact with Nostr relays over WebSocket. Relays see IP addresses, connection patterns, and subscription filters. Even in sovereign phase, relay fallback (Tier 4) exposes metadata.
-- **Blinded pubkeys are weak anonymization.** The daily hash rotation (H(target_pubkey || YYYY-MM-DD)) means an observer who knows the target pubkey can compute the blinded pubkey and identify all requests for that target. This is a pseudonymization scheme, not an anonymization scheme. An adversary who knows Alice's pubkey can identify all gossip requests for Alice's data across the entire network.
 - **Pact partner metadata.** Your 20 pact partners know your complete event history (they store it). They know your activity patterns, your posting frequency, and your content. If a pact partner is compromised or coerced, your complete social activity is exposed. Briar stores nothing beyond the endpoints.
-- **Social graph exposure.** Follow lists (kind 3) are public in Nostr. Your WoT is visible to anyone. Briar reveals contacts only to each contact individually (via Tor-routed peer connections). Gozzip's social graph is a surveillance surface that Briar deliberately avoids.
 - **No onion routing by default.** Gozzip mentions Tor as a possible FIPS transport but does not route through Tor by default. An adversary performing traffic analysis on the gossip network can identify communication patterns, social clusters, and active users.
 
-**The panic wipe feature is well-designed but insufficient for high-threat scenarios.** The decoy-profile option (wiping to innocuous content instead of a blank state) is a thoughtful touch. However, the recovery path (access root key from cold storage, publish new kind 10050, fetch from pact partners) assumes the user has access to cold storage after a seizure -- which may not be the case. Additionally, pact partners still hold your data. A state actor who identifies your pubkey can query your pact partners for your complete history, even after you've wiped your device.
+**The panic wipe feature is well-designed but insufficient for high-threat scenarios.** The recovery path (access root key from cold storage, publish new kind 10050, fetch from pact partners) assumes the user has access to cold storage after a seizure -- which may not be the case. Additionally, pact partners still hold your data. A state actor who identifies your pubkey can query your pact partners for your complete history, even after you've wiped your device.
 
 **BLE mesh (via BitChat) is a genuine capability for protest scenarios.** The 7-hop BLE relay with Noise Protocol encryption provides local communication without internet dependency. For protests where the internet is shut down, this is valuable. However, Briar also supports BLE and WiFi Direct for local communication, and has been field-tested in actual protest environments (Hong Kong, Iran, Myanmar). Gozzip's BLE integration is adapted from BitChat's whitepaper but has no production deployment.
 
@@ -252,8 +247,6 @@ Gozzip's social incentive avoids Filecoin's token volatility problem but introdu
 **Proof of storage: Gozzip's is simpler and weaker.** Filecoin's Proof of Replication (PoRep) cryptographically proves that a miner has created a unique physical copy of the data. Proof of Spacetime (PoSt) proves that the copy persists over time. These are computationally expensive but cryptographically strong.
 
 Gozzip's challenge-response is simpler: hash challenges (compute H(events[i..j] || nonce)) and serve challenges (return a specific event by sequence number). This proves possession at challenge time but does not prove continuous storage. A malicious pact partner could re-fetch data from another source just before responding to a challenge. The latency check (flag responses > 500ms) is a weak heuristic -- a partner with a fast connection to another copy could proxy without detection.
-
-For the WoT threat model (pact partners are social acquaintances, not anonymous adversaries), this simpler proof is probably sufficient. But the protocol should be honest that it provides proof of *possession*, not proof of *dedicated storage*.
 
 **Content addressing vs event signing.** IPFS uses content-addressed storage (CIDs derived from content hashes). Gozzip uses author-signed events with sequence numbers. Content addressing enables deduplication, integrity verification by any holder, and permanent URLs (ipfs://). Gozzip events are identified by author pubkey + sequence, which requires knowing the author to verify. Both approaches provide integrity verification, but IPFS's content addressing is more universal.
 
@@ -306,11 +299,7 @@ For the WoT threat model (pact partners are social acquaintances, not anonymous 
 
 ### What is reinvented without sufficient acknowledgment
 
-- **Blinded request routing.** The blinded pubkey mechanism (H(target || date)) is a simplified form of PIR (Private Information Retrieval). The whitepaper does not reference PIR literature. More importantly, it does not acknowledge that this blinding scheme is weak -- an observer who knows the target pubkey can compute the blinded form and identify all requests. True PIR provides computational hiding; Gozzip's scheme provides only pseudonymization.
-
 - **Checkpoint-based reconciliation.** The kind 10051 checkpoint (Merkle root over events since last checkpoint, per-device event heads) is similar to Merkle-based sync protocols used in CRDTs, Git, and database replication. The whitepaper does not reference this prior art beyond van Renesse's anti-entropy work.
-
-- **Social recovery.** The kind 10060/10061 social recovery mechanism (N-of-M recovery contacts, 7-day timelock) closely resembles Ethereum's social recovery wallet proposals (Vitalik Buterin, 2021) and Keybase's device/paper key model. Not explicitly positioned relative to this prior art.
 
 ---
 
@@ -348,8 +337,6 @@ Gozzip inherits NIP-29 (group chats) from Nostr but does not specify how group c
 
 ### Rich media
 
-The plausibility analysis assumes text events (750-925 bytes average). There is no discussion of image, video, or audio storage within the pact framework. An active user posting 5 images per day (average 500 KB each) would generate 75 MB/month of media -- 100x the text-only estimate. Media hosting is the single largest cost for social platforms (Mastodon's media cache: 10-20 GB/day). Gozzip's pact storage analysis does not address this.
-
 The whitepaper should specify: are media files stored by pact partners or hosted externally (e.g., on CDNs, IPFS, Nostr media servers)? If pact partners store media, the storage and bandwidth requirements increase by orders of magnitude. If media is hosted externally, the sovereignty claim is weakened (your text is sovereign but your images depend on external infrastructure).
 
 ### Search
@@ -371,10 +358,6 @@ No content-warning mechanism (Mastodon's CW is widely used). No alt-text convent
 ### Direct message group chats
 
 Kind 14 DMs are pairwise. There is no specified mechanism for encrypted group messaging (MLS, Sender Keys, or similar). Matrix has this. Signal has this. Gozzip does not specify it.
-
-### Account migration tooling
-
-The vision document states "existing Nostr keys work as Gozzip root keys" but does not specify how a user migrates their pact network, cached endpoints, reliability scores, and WoT state to a new client or device. AT Protocol has a specified PDS migration procedure. Gozzip has "fetch from pact partners and rebuild," which is underspecified.
 
 ### Thread and conversation model
 
@@ -442,6 +425,6 @@ The protocol's viability depends on the 25% full-node assumption. If this ratio 
 
 Gozzip makes three genuinely novel contributions: volume-matched bilateral storage pacts, the three-phase relay-dependency decay, and the tiered retrieval cascade with cascading read-caches. These are real innovations that address real problems in decentralized social networking.
 
-The protocol is weakest where it overstates: claiming surveillance resistance without specifying the threat model, presenting self-authenticating events and data portability as differentiators when they are inherited from Nostr, and not addressing the media-storage and moderation gaps that any social platform must eventually face.
+The protocol is weakest where it overstates: presenting self-authenticating events and data portability as differentiators when they are inherited from Nostr, and not addressing the moderation gaps that any social platform must eventually face.
 
 The most important honest statement in the entire documentation is in the whitepaper's conclusion: "The honest assessment: this architecture does not eliminate the need for always-on infrastructure." The protocol should lead with this honesty throughout. Gozzip does not eliminate infrastructure dependency -- it distributes it across the social graph. That is a meaningful improvement, not a revolution. The elevator pitch should reflect this.

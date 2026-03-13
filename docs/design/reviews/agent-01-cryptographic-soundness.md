@@ -9,33 +9,15 @@
 
 ## Executive Summary
 
-The Gozzip protocol demonstrates above-average design discipline for a social-layer protocol. The key hierarchy is structurally sound, the threat model is honestly stated, and the protocol is self-aware about its limitations (e.g., the proof-of-storage-alternatives.md document). The remaining issues are primarily around NIP-46 metadata exposure, revocation latency, key deletion enforcement, and the fundamental limitations of social recovery.
+The Gozzip protocol demonstrates above-average design discipline for a social-layer protocol. The key hierarchy is structurally sound, the threat model is honestly stated, and the protocol is self-aware about its limitations (e.g., the proof-of-storage-alternatives.md document). The remaining issues are primarily around revocation latency, key deletion enforcement, and the fundamental limitations of social recovery.
 
 **Remaining issue count by severity:**
-- Significant: 1
 - Minor: 2
 - Nitpick: 1
 
 ---
 
 ## 1. Key Hierarchy
-
-### 1.1 Device Key Compromise Does Not Lead to Root Key Compromise
-
-**Claim:** "Compromised device (device key + DM key) can post and read DMs but CANNOT re-authorize itself, change follows, or forge profile."
-
-**Analysis:** This claim holds, with an important caveat. Device keys are generated independently (not derived from root), so compromising a device key reveals nothing about the root key. The DM key and governance key are derived from root, but the derivation is one-way (assuming a proper KDF -- see 1.1). Possessing a derived key does not enable recovery of the root key under standard assumptions.
-
-However, the DM key IS on every DM-capable device. If an attacker compromises a DM-capable device, they obtain:
-- The device private key (can forge posts as that device)
-- The current DM private key (can read all current and recent DMs)
-- Potentially the governance key if the device is "trusted"
-
-The blast radius is correctly analyzed in the protocol documentation. The key hierarchy successfully prevents a compromised device from escalating to root-level authority.
-
-**Does the claim hold?** Yes, assuming a secure KDF (see 1.1).
-
-**Severity:** N/A (claim holds)
 
 ### 1.2 Root Key in Cold Storage is the Right Call but Creates a Liveness Problem
 
@@ -81,34 +63,6 @@ The protocol is honest about this: "DM key rotation provides bounded forward sec
 **Severity:** Minor
 
 **Suggested fix:** Acknowledge that forward secrecy depends on correct client implementation of key deletion. Recommend that client implementations use platform-specific secure storage APIs (iOS Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, Android Keystore) that provide hardware-backed key storage with deletion guarantees.
-
----
-
-## 3. NIP-46 Encrypted Channels
-
-### 3.1 The Relay Is a Metadata-Aware Intermediary, Not a Trusted Third Party
-
-**Claim:** "Any two peers can establish an encrypted channel through a shared relay without exchanging IP addresses or requiring simultaneous online presence."
-
-**Analysis:** The encryption claim is correct -- NIP-46 uses NIP-44 encryption, so the relay cannot read message contents. However, the relay is NOT merely an oblivious pipe:
-
-1. **The relay sees who communicates with whom.** NIP-46 messages have `p` tags indicating the recipient. The relay sees both the sender's pubkey (in the event's `pubkey` field) and the recipient's pubkey (in the `p` tag). This is sufficient to build a communication graph.
-
-2. **The relay sees timing.** When Alice stores a message and when Bob fetches it reveals their online patterns and interaction frequency.
-
-3. **The relay can selectively deny service.** A malicious relay can drop NIP-46 messages for specific pubkeys, disrupting pact management, challenge-response, and event sync.
-
-4. **The relay can correlate NIP-46 traffic with other activity.** If Alice uses the same relay for NIP-46 pact communication and for publishing kind 1 events, the relay can correlate her social activity with her pact management.
-
-The surveillance-surface.md document acknowledges points 1-2: "Timing of all operations... NIP-46 store/fetch timing correlation." This is accurate. But the protocol's description of NIP-46 channels as providing privacy guarantees should be more precise.
-
-**Does the claim hold?** The confidentiality claim holds (relay cannot read content). The privacy claim is overstated (relay sees who communicates with whom and when).
-
-**Actual guarantee:** NIP-46 provides message confidentiality and IP address hiding between peers. It does not provide metadata privacy -- the relay learns the communication graph and timing patterns.
-
-**Severity:** Significant
-
-**Suggested fix:** Use NIP-59 gift wrapping for NIP-46 messages. This hides the recipient's pubkey from the relay (the `p` tag is in the encrypted inner event, not the outer wrapper). The relay sees the sender's pubkey and an opaque blob, but not the recipient. This is already used for kind 10059 endpoint hints -- apply the same pattern to NIP-46 pact communication.
 
 ---
 
@@ -194,9 +148,8 @@ If all queried sources have been compromised or are maliciously returning a low 
 
 | # | Issue | Claim | Holds? | Severity | Fix Priority |
 |---|-------|-------|--------|----------|-------------|
-| 1.1 | Root key liveness | Cold storage is secure | Yes, but slow | Minor | Low |
-| 2.1 | Key deletion enforcement | Old keys are deleted | Client-dependent | Minor | Low |
-| 3.1 | Relay sees NIP-46 metadata | Channels are private | Confidentiality yes, metadata no | Significant | Medium |
+| 1.2 | Root key liveness | Cold storage is secure | Yes, but slow | Minor | Low |
+| 2.2 | Key deletion enforcement | Old keys are deleted | Client-dependent | Minor | Low |
 | 6.1 | Seq recovery fragility | Hash chain detects gaps | Best-effort recovery | Nitpick | Low |
 
 ---
@@ -205,6 +158,6 @@ If all queried sources have been compromised or are maliciously returning a low 
 
 The Gozzip protocol's cryptographic architecture is structurally sound for its stated threat model (social-layer storage among WoT peers, not adversarial financial actors). The key hierarchy successfully isolates device, DM, governance, and root key authority. The choice of NIP-44 for encryption and secp256k1 for identity is well-established and appropriate.
 
-The remaining significant issue (NIP-46 metadata exposure) is a design trade-off that the protocol team has largely already identified and documented. The main recommendation is to make the actual guarantees more precise in the documentation, so that implementers and users do not overestimate the security properties.
+The remaining issues are minor: revocation latency for compromised devices, client-side key deletion enforcement, and seq recovery fragility. These are implementation-level concerns rather than architectural problems.
 
 The protocol's greatest cryptographic strength is its honesty: the proof-of-storage-alternatives.md and surveillance-surface.md documents demonstrate that the designers understand their limitations.

@@ -15,62 +15,6 @@ For each issue I state the protocol's claim, the rational agent analysis, whethe
 
 ---
 
-## Issue 1: Bilateral Pact Incentives -- Is Mutual Storage a Nash Equilibrium?
-
-### Protocol claim
-
-Storage pacts are bilateral: "I store yours, you store mine." Volume is matched within 30% tolerance. The reciprocal structure creates natural incentives -- you get backup storage by providing it. If one side stops, the other stops (ADR 005). The penalty for defection is loss of pact partners and reduced gossip forwarding reach (incentive-model.md).
-
-### Rational agent analysis
-
-Model as an iterated prisoner's dilemma between two pact partners. Each round, each player chooses **Cooperate** (store the partner's data, respond to challenges) or **Defect** (delete data, fail challenges, save storage and bandwidth).
-
-**Payoff matrix per round (approximate):**
-
-| | Partner Cooperates | Partner Defects |
-|---|---|---|
-| **I Cooperate** | (+redundancy, +reach, -storage cost) | (-storage cost, no reciprocal benefit) |
-| **I Defect** | (+free storage from partner until detected, no cost) | (no storage, no cost, no benefit) |
-
-The key question is detection lag. The protocol uses challenge-response with exponential moving average scoring (alpha=0.95, 30-day effective window). A defecting node is not caught immediately. The scoring thresholds are:
-
-- 90%+ = healthy
-- 70-90% = degraded (more challenges, but no pact drop)
-- 50-70% = replacement begins
-- <50% = immediate drop
-
-A strategic defector can maintain a score above 70% by passing most challenges while deleting selectively. For example:
-
-**Strategy: Selective storage.** Store the most recent 7 days of a partner's events (high challenge probability for recent data) and delete older events. Most hash challenges will target recent ranges. Serve challenges for recent events will pass. The defector saves storage while maintaining a "degraded" but not "unreliable" rating.
-
-**Strategy: Challenge-window exploitation.** The alpha=0.95 EMA means each challenge result contributes only 5% to the score. To drive a perfect score from 1.0 to 0.7 requires roughly `ln(0.7)/ln(0.95) = 6.9` consecutive failures. With challenges spaced at intervals, a defector who fails every third challenge maintains a score of approximately 0.85 -- solidly in the "degraded" band but never triggering replacement.
-
-**When is defection rational?** When the marginal cost of storage exceeds the marginal value of reach. For a low-follower user who does not care about content distribution (a lurker who only reads), defection is always rational -- they gain nothing from gossip forwarding because they post nothing. The protocol's incentive ("store reliably -> pact partners forward your content -> wider reach") is vacuous for users who do not produce content.
-
-**Bandwidth vs. storage asymmetry.** The protocol assumes storage is the scarce resource, but for mobile users on metered connections, bandwidth for syncing events and responding to challenges may be more expensive than the storage itself. A user whose data plan costs $10/GB faces real costs from challenge-response traffic that are not captured by the volume-matching mechanism. Defection (going offline during challenge windows) is rational for users with expensive bandwidth, even if they want to cooperate on storage.
-
-### Nash equilibrium?
-
-**Conditional yes, with caveats.** For users who produce content and value reach, mutual storage approximates a Nash equilibrium in the iterated game -- but only because the iterated structure (repeated interactions with the same partners) enables tit-for-tat-like enforcement. The equilibrium depends on:
-
-1. Sufficiently fast detection (challenged)
-2. Sufficiently high value of reach relative to storage costs
-3. Sufficiently low discount rate (players care about future rounds)
-
-For lurkers, bandwidth-constrained users, and users with very low follower counts, defection is the dominant strategy. The protocol has no mechanism to prevent this because the punishment (reduced reach) has zero value to these users.
-
-### Severity: **Significant**
-
-The pact mechanism works for its target demographic (active social media users who post regularly) but has a structural free-rider problem for passive consumers. If passive consumers represent 60-80% of users (typical for social platforms -- the 1-9-90 rule), the protocol's incentive model covers only the 1-10% who create content.
-
-### Suggested fixes
-
-1. **Explicit lurker mode.** Acknowledge that read-only users have no storage incentive. Design a "consumer" tier that does not form pacts and relies on relays + read-caches. This is honest about the incentive gap rather than claiming universal reciprocity.
-2. **Bandwidth-aware volume matching.** Include estimated challenge-response bandwidth in the pact cost model, not just storage volume. A pact between a fiber-connected desktop and a metered mobile phone is not symmetric even if data volumes match.
-3. **Shorter detection windows.** The 30-day EMA window is too slow. A defector can free-ride for weeks before reaching the "unreliable" threshold. Consider a dual-window approach: a fast window (7-day) for anomaly detection alongside the slow window (30-day) for trend assessment.
-
----
-
 ## Issue 2: Volume Matching (30% Tolerance) and Asymmetric Exploitation
 
 ### Protocol claim
@@ -102,101 +46,6 @@ The mechanism addresses the first-order problem (gross volume mismatch) but igno
 1. **Continuous volume monitoring.** Check volume balance not just at formation but on a rolling basis. If the ratio drifts beyond tolerance, trigger renegotiation automatically -- not just when challenges fail.
 2. **Volume categories.** Distinguish between text-only and media-referencing users in pact matching. Or better: match on projected storage cost (volume x retention period) rather than raw volume.
 3. **Bursty posting penalty.** If a user's posting rate deviates more than 2x from the rate at pact formation, the pact enters a "re-evaluation" state where the high-volume user must find additional pact partners to absorb the excess rather than dumping it on existing partners.
-
----
-
-## Issue 3: Guardian Pact Incentives -- Why Would Anyone Volunteer?
-
-### Protocol claim
-
-An established user (Guardian) voluntarily stores data for one newcomer (Seedling) outside their Web of Trust. The pay-it-forward framing is deliberate: today's Seedling becomes tomorrow's Guardian. Users who were supported during bootstrap are "encouraged (by client UX, not protocol enforcement)" to volunteer a guardian slot (whitepaper Section 4.6). The ADR 009 describes this as a "self-reinforcing generosity cycle."
-
-### Rational agent analysis
-
-This is the most glaring incentive gap in the protocol. The analysis is straightforward:
-
-**Costs to the Guardian:**
-- Storage: one Seedling's data volume (bounded, but nonzero)
-- Bandwidth: challenge-response traffic, event sync
-- Risk: storing data for an unknown user who might be a spammer, attacker, or law enforcement honeypot
-- Opportunity cost: the guardian slot could be used for another reciprocal pact partner who provides actual storage back
-
-**Benefits to the Guardian:**
-- None. The protocol explicitly states guardian pacts are "one-sided" -- the Seedling does not store the Guardian's data.
-- "Client UX encouragement" is not an incentive. It is a suggestion that a rational agent will ignore.
-- "Pay it forward" is a social norm. Social norms sustain cooperation only when reinforced by reputation, observation, and social consequences. In a pseudonymous network, there is no social cost to refusing to volunteer.
-
-**What a rational Sovereign-phase node actually does:** Never advertises guardian availability. The cost is real, the benefit is zero, and there is no punishment for refusing. Every resource spent on a guardian pact is a resource not spent on reciprocal pacts that provide actual storage backup.
-
-**The altruism assumption is fatal for bootstrapping.** If no rational Sovereign-phase node volunteers, no Seedlings can form guardian pacts. They must rely entirely on bootstrap pacts (follow someone, get temporary storage from the followed user). But bootstrap pacts are also one-sided and have the same incentive problem -- why would a followed user store a stranger's data just because the stranger followed them?
-
-**Counter-argument: "people do volunteer in practice."** Yes, some humans are prosocial. Wikipedia has volunteer editors. Open-source has volunteer contributors. But these systems work because (a) the contribution is visible and earns reputation, (b) the volunteer has intrinsic motivation (cares about the topic), or (c) the community is small enough for social enforcement. Gozzip's guardian pacts are private (pact details never published), so there is no reputation gain. The Seedling is a stranger, so there is no intrinsic social motivation. And pseudonymity prevents social enforcement.
-
-### Nash equilibrium?
-
-**No.** The unique Nash equilibrium for guardian pacts is "nobody volunteers." This is a classic public goods game where the individually rational strategy is to free-ride on others' contributions. Without a mechanism to make volunteering privately profitable, the guardian system will be underprovided.
-
-### Severity: **Critical**
-
-Guardian pacts are one of only two mechanisms for cold-start bootstrapping. If they do not work, every new user depends entirely on bootstrap pacts (which have the same incentive problem, though mitigated by the follow relationship). The cold-start pathway collapses to: follow someone, hope they store your data, build WoT slowly. This is fragile and creates a high barrier to entry that undermines network growth.
-
-### Suggested fixes
-
-1. **Make guardianship visible and reputation-bearing.** Publish (with consent) that a user has served as a Guardian. This creates social capital within the WoT -- "Alice has helped 12 newcomers bootstrap" is a positive signal that earns trust and follow-backs. Visibility converts a private cost into a public good with reputational returns.
-2. **Guardian priority in gossip.** Give Guardians a small boost in gossip forwarding priority -- their content is forwarded with slightly higher priority than baseline. This converts guardianship into a concrete reach benefit.
-3. **Guardian pact as WoT edge.** Make a completed guardian pact (where the Seedling reaches Hybrid phase) create a persistent WoT edge. The Guardian gains a guaranteed WoT connection to a growing node, which has future value as that node's network matures. This converts the one-shot cost into a long-term social investment.
-4. **Relay-subsidized guardian storage.** Relays could offer to store Seedling data for the first 90 days, converting the guardian role from "individual volunteer" to "relay feature." This aligns with relay economics -- the relay gains future users who will publish through it.
-
----
-
-## Issue 4: Free-Rider Equilibrium -- Network Sustainability Under Defection
-
-### Protocol claim
-
-The protocol's incentive model degrades gracefully: "less contribution means less reach, not exclusion" (incentive-model.md). Passive users get "basic WoT reach" with "no punishment -- just less amplification." The implicit claim is that the network functions even with significant free-riding because the incentive gradient is smooth.
-
-### Rational agent analysis
-
-Model the network as a public goods game where each node's contribution (storing pact partners' data, forwarding gossip) creates a positive externality for the network.
-
-**Free-rider utility function:** A free-rider consumes content (reads via relays and gossip) without providing storage or forwarding. Their costs are zero. Their benefits are: access to content from followed users, ability to post (via relays), and basic WoT visibility (contacts still see their posts).
-
-**What does a free-rider actually lose?** The protocol claims they lose "reach" -- fewer forwarding advocates means their posts travel less far. But:
-
-1. **Most users have small audiences anyway.** For a user with 50 followers, the difference between "20 forwarding advocates" and "5 forwarding advocates" is marginal -- their content reaches their followers through direct follows regardless of gossip forwarding.
-2. **Relay access is unrestricted.** A free-rider can still publish to relays. Relay-based discovery is independent of pact participation. The protocol does not gate relay publishing on pact compliance.
-3. **Read access is free.** Nothing in the protocol prevents a non-contributing node from reading via gossip or relays. The WoT boundary applies to forwarding, not reading.
-
-**Tipping point analysis.** The network requires:
-- Storage: 20 pact partners per user, each storing the user's data
-- Gossip forwarding: nodes forwarding content for their WoT peers
-- Challenge-response: pact partners responding to proof-of-storage challenges
-
-If x% of nodes free-ride (don't store, don't forward, don't respond to challenges):
-
-- At **x = 30%**: Each user's pact pool shrinks by 30%. A user targeting 20 pacts can now only form 14. Data availability drops from `P(unavailable) = 10^-9` to approximately `10^-6`. Still highly available, but three orders of magnitude worse.
-- At **x = 50%**: Users can form only 10 pacts on average. The availability calculation becomes `P(unavailable) = (0.05)^2.5 * (0.70)^7.5 = 3.5 * 10^-4 * 0.082 = 2.9 * 10^-5`. One-in-34,000 chance of unavailability -- still decent but noticeably degraded.
-- At **x = 70%**: Users can form only 6 pacts. The full-node fraction within those 6 may be zero. `P(unavailable) = (0.70)^6 = 0.118`. Roughly 12% chance of total unavailability at any moment. **The network is no longer reliable.**
-
-**The death spiral.** Free-riding is contagious. When a cooperative node observes that its pact partners are unreliable (because many have defected), the cooperative node's data availability drops. The node's rational response is to form more pacts -- but the pool of reliable partners is shrinking. Eventually, the cooperative node also defects (why store others' data when nobody stores mine reliably?). This is a classic tragedy of the commons with a tipping point.
-
-### Nash equilibrium?
-
-**Two equilibria exist:**
-1. **Cooperative equilibrium:** Everyone stores, everyone benefits. Stable only if the fraction of defectors stays below ~30%.
-2. **Defection equilibrium:** Nobody stores, everyone uses relays. Stable because no single node can improve their outcome by unilaterally cooperating (their stored data helps a partner who isn't storing theirs).
-
-The cooperative equilibrium is **fragile** -- it requires a critical mass of cooperators and collapses once defection exceeds the tipping point. The defection equilibrium is **robust** -- it is the fallback state and corresponds to "Nostr as it exists today."
-
-### Severity: **Critical**
-
-The protocol's existence depends on the cooperative equilibrium being stable. The analysis shows it is conditionally stable but vulnerable to cascade failure. The "graceful degradation" framing understates the risk -- degradation is smooth up to the tipping point and then catastrophic.
-
-### Suggested fixes
-
-1. **Make defection observable.** Currently pact details are private. Consider publishing aggregate challenge-response statistics (e.g., "this pubkey has passed 95% of challenges across all pact partners"). This enables the WoT to price in reliability.
-2. **Tiered service based on contribution.** Go beyond "less reach" and implement concrete service tiers: free-riders get relay-only mode (which works but is slower), contributors get peer-to-peer acceleration. Make the quality gap large enough to incentivize contribution.
-3. **Minimum contribution for gossip participation.** Nodes that do not store any pact partners' data should not be allowed to forward gossip queries. This prevents the "read for free, contribute nothing" strategy by linking gossip participation to storage contribution.
 
 ---
 
@@ -343,15 +192,13 @@ The protocol's value increases with network size through multiple mechanisms: mo
 
 **Negative network effects (unclaimed but real):**
 
-1. **Cold-start barrier.** A new user joins and finds: no pact partners available (small network), no gossip infrastructure (few nodes forwarding), no read-caches (nobody has read their content). The protocol is strictly worse than Nostr for this user because Nostr at least has functioning relays. The user's rational response: stay on Nostr.
+1. **WoT chicken-and-egg.** The WoT requires mutual follows to be useful. Mutual follows require both parties to be on the platform. Both parties joining requires both to perceive sufficient value. This is a two-sided coordination problem with no clear resolution mechanism beyond "early adopters who are intrinsically motivated."
 
-2. **WoT chicken-and-egg.** The WoT requires mutual follows to be useful. Mutual follows require both parties to be on the platform. Both parties joining requires both to perceive sufficient value. This is a two-sided coordination problem with no clear resolution mechanism beyond "early adopters who are intrinsically motivated."
+2. **The two-network problem.** Gozzip is backward-compatible with Nostr (same events, same relays). This is a feature for adoption but a bug for network effects: if a user can get 90% of Gozzip's value by staying on Nostr (same follows, same relays, same content), the incremental value of adopting Gozzip (pact storage, gossip routing) is small. Small incremental value + switching costs (new client, learning curve, pact management) = rational inaction.
 
-3. **The two-network problem.** Gozzip is backward-compatible with Nostr (same events, same relays). This is a feature for adoption but a bug for network effects: if a user can get 90% of Gozzip's value by staying on Nostr (same follows, same relays, same content), the incremental value of adopting Gozzip (pact storage, gossip routing) is small. Small incremental value + switching costs (new client, learning curve, pact management) = rational inaction.
+3. **Community fragmentation.** The WoT boundary (2-hop gossip limit) means the protocol naturally fragments into communities that cannot communicate via gossip. Content crossing community boundaries requires relays. But the protocol demotes relays. So inter-community content flow degrades as the protocol "succeeds" -- a paradox where success in one dimension (relay independence) creates failure in another (global content discovery).
 
-4. **Community fragmentation.** The WoT boundary (2-hop gossip limit) means the protocol naturally fragments into communities that cannot communicate via gossip. Content crossing community boundaries requires relays. But the protocol demotes relays. So inter-community content flow degrades as the protocol "succeeds" -- a paradox where success in one dimension (relay independence) creates failure in another (global content discovery).
-
-5. **Critical mass for pact formation.** A user needs 20 pact partners, volume-matched within 30%, within their WoT. For a user with 50 mutual follows on a network of 1,000 users, the probability that 20+ of those 50 are volume-compatible is questionable. If posting rates follow a power law (as they do on all social platforms), most users are low-volume (far left of the distribution), and finding volume-matched peers is easy. But high-volume users (content creators) have few volume-compatible peers, and these are exactly the users the protocol needs most to demonstrate value.
+4. **Critical mass for pact formation.** A user needs 20 pact partners, volume-matched within 30%, within their WoT. For a user with 50 mutual follows on a network of 1,000 users, the probability that 20+ of those 50 are volume-compatible is questionable. If posting rates follow a power law (as they do on all social platforms), most users are low-volume (far left of the distribution), and finding volume-matched peers is easy. But high-volume users (content creators) have few volume-compatible peers, and these are exactly the users the protocol needs most to demonstrate value.
 
 **Adoption dynamics.** The protocol's adoption path requires:
 1. Early adopters install Gozzip-compatible clients (cost: switching)
@@ -377,7 +224,6 @@ Not critical because the protocol has a viable fallback (Nostr relay infrastruct
 1. **Community-first adoption.** Instead of individual adoption, target tight-knit communities where most members will adopt simultaneously (mutual follow density is high, pact formation is immediate). Nostr communities with existing group identities are natural targets.
 2. **Observable pact benefits.** Add client UI indicators that show: "This post was retrieved from your pact network, not a relay" or "Your data survived the wss://relay-x.com outage because 15 pact partners stored it." Make the value visible.
 3. **Relay failure as adoption trigger.** The strongest adoption signal is a relay failure where pact-enabled users retain their data while non-pact users lose theirs. The protocol should be prepared to capitalize on such events with clear messaging: "If you had pacts, your data would have survived."
-4. **Lower the pact formation threshold.** 20 active pacts is ambitious for a bootstrapping network. Start with 5-10 pacts as the "Sovereign" threshold and increase as the network grows.
 
 ---
 
@@ -387,7 +233,6 @@ Multiple issues in this analysis converge on a single structural weakness: **the
 
 | Mechanism | Protocol says | Reality |
 |---|---|---|
-| Guardian pacts | "Pay it forward" | No rational incentive to volunteer |
 | Keeper uptime | "Every friend group has one tech person" | No rational incentive to run a server |
 | WoT integrity | "Follows represent genuine trust" | Follows are instrumentalized for pact access |
 | Gossip forwarding | "Pact partners forward eagerly" | Forwarding costs bandwidth; rational to minimize |
@@ -403,24 +248,18 @@ The protocol's designers are clearly aware of this tension (the documents are re
 
 | # | Issue | Severity | Nash Equilibrium? | Core Problem |
 |---|---|---|---|---|
-| 1 | Bilateral pact incentives | Significant | Conditional -- only for content producers | Lurkers have no incentive to cooperate |
 | 2 | Volume matching (30% tolerance) | Significant | Partially -- gameable at formation time | Matches wrong dimension (volume vs. cost) |
-| 3 | Guardian pact incentives | Critical | No -- volunteering is dominated by not volunteering | Zero benefit to Guardian |
-| 4 | Free-rider equilibrium | Critical | Two equilibria -- cooperative is fragile | Tragedy of the commons with tipping point |
 | 5 | Challenge-response gaming | Significant | No -- minimum-viable compliance is rational | Probabilistic system with known parameters |
 | 6 | WoT-for-hire and fake follows | Significant | No -- WoT edges will be instrumentalized | Protocol incentivizes WoT degradation |
 | 7 | Relay economics | Significant | Unstable -- relay value decreases under the protocol | Transition valley of death |
-| 8 | Network effects and adoption | Significant | No equilibrium at small scale -- coordination game | Cold-start + low incremental benefit |
-
-### Critical issues requiring immediate design attention:
-1. Guardian pact incentives (Issue 3)
-2. Free-rider equilibrium and tipping point (Issue 4)
+| 8 | Network effects and adoption | Significant | No equilibrium at small scale -- coordination game | Two-network problem + low incremental benefit |
 
 ### Significant issues requiring design iteration:
-3. Bilateral pact incentives for non-producers (Issue 1)
-4. Challenge-response gaming (Issue 5)
-5. WoT integrity under instrumental use (Issue 6)
-6. Relay economics during transition (Issue 7)
+1. Volume matching asymmetric exploitation (Issue 2)
+2. Challenge-response gaming (Issue 5)
+3. WoT integrity under instrumental use (Issue 6)
+4. Relay economics during transition (Issue 7)
+5. Network effects and adoption dynamics (Issue 8)
 
 ---
 
@@ -428,13 +267,12 @@ The protocol's designers are clearly aware of this tension (the documents are re
 
 The Gozzip protocol is an architecturally ambitious and intellectually honest design. The documents themselves identify many of the problems raised here ("whether the 25% full node ratio emerges organically is an empirical question," "challenge-response proves possession, not dedication," "the cold-start problem is real"). This self-awareness is a strength.
 
-However, the protocol's incentive model has three structural gaps that, if unaddressed, lead to the same outcome: **convergence toward Nostr's current relay-dependent model**, where the pact layer exists but is underutilized because the rational behavior for most agents is to free-ride on relay infrastructure rather than bear the costs of pact participation.
+However, the protocol's incentive model has two remaining structural gaps that, if unaddressed, lead to the same outcome: **convergence toward Nostr's current relay-dependent model**, where the pact layer exists but is underutilized because the rational behavior for most agents is to free-ride on relay infrastructure rather than bear the costs of pact participation.
 
-The three gaps are:
-1. **No positive incentive for altruistic roles** (Guardians, Keepers)
-2. **Weak enforcement against strategic defection** (challenge gaming, selective storage)
-3. **Insufficient marginal benefit of cooperation** (reach improvement too small to justify costs)
+The two gaps are:
+1. **Weak enforcement against strategic defection** (challenge gaming, selective storage)
+2. **Insufficient marginal benefit of cooperation** (reach improvement too small to justify costs)
 
 The protocol's "attention as currency" framing is elegant but insufficient. Attention rewards content quality, not infrastructure contribution. A brilliant writer with zero pacts gets reach through relays. A reliable Keeper with boring posts gets infrastructure costs but no reach. The incentive is misaligned: the protocol rewards the behavior it does not need (good content, which would thrive on any platform) and fails to reward the behavior it desperately needs (reliable infrastructure, which only this protocol requires).
 
-The fix is not to abandon the social-norm approach but to supplement it with mechanism design: small, concrete, measurable rewards for the specific behaviors the protocol needs (Keeper uptime, Guardian volunteering, challenge compliance, gossip forwarding). The Lightning layer is already positioned for this -- the gap is in connecting it to the base-layer incentives rather than treating it as an optional premium tier.
+The fix is not to abandon the social-norm approach but to supplement it with mechanism design: small, concrete, measurable rewards for the specific behaviors the protocol needs (Keeper uptime, challenge compliance, gossip forwarding). The Lightning layer is already positioned for this -- the gap is in connecting it to the base-layer incentives rather than treating it as an optional premium tier.

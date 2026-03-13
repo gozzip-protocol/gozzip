@@ -10,31 +10,7 @@
 
 These are the strongest signals. When independent reviewers with different expertise converge on the same problem, it is almost certainly real.
 
-### 1.1 Guardian Pact Incentives Are Broken
-
-**Flagged by:** Agent 03 (Game Theory), Agent 04 (Cold Start), Agent 08 (Red Team)
-
-**The issue:** Guardian pacts are one-sided: the Guardian stores a Seedling's data and receives nothing in return. Agent 03 showed the unique Nash equilibrium is "nobody volunteers" -- a classic public goods game where individual rationality produces collective failure. Agent 04 showed that at network launch, there are literally zero Sovereign-phase users to serve as Guardians. Agent 08 showed that a malicious Guardian can silently censor a Seedling during the critical bootstrap phase with no protocol-level detection.
-
-**Combined severity: Critical for bootstrapping.** The guardian mechanism is one of only two cold-start mechanisms (the other being bootstrap pacts, which have a related but milder incentive problem). If neither works reliably, the path from Seedling to Sovereign is fragile.
-
-**Consensus recommendation:** (a) Make guardianship visible and reputation-bearing, (b) provide a small concrete incentive (gossip priority boost, persistent WoT edge after successful guardianship), (c) run 5-10 operator-controlled "Genesis Guardian" nodes during the first 6-12 months as transparent centralized scaffolding.
-
----
-
-### 1.2 Metadata Exposure Through Relay Patterns
-
-**Flagged by:** Agent 01 (Cryptographic Soundness), Agent 05 (Privacy Analysis), Agent 08 (Red Team)
-
-**The issue:** Relays see who publishes, who subscribes, timing of all operations, and NIP-46 pact communication patterns. Agent 01 showed NIP-46 channels expose communication graphs. Agent 05 showed a single popular relay can reconstruct 50-80% of a user's follow graph; 3-5 colluding relays approach completeness. Agent 08 showed relay cartels can reconstruct social graphs, infer pact topology via timing analysis, deanonymize blinded requests, and sabotage challenge-response.
-
-**Combined severity: Significant.** The protocol's privacy claims are calibrated against single-relay observation but most realistic threats involve relay collusion, which defeats the fragmentation defense.
-
-**Consensus recommendation:** (a) Quantify "partial" visibility honestly (e.g., "a relay serving 50% of authors sees ~50% of your follow graph"), (b) support Tor-based relay connections as a first-class feature for high-threat users, (c) consider NIP-59 gift wrapping for NIP-46 pact communication to hide recipient metadata.
-
----
-
-### 1.3 Simulation Validates at a Single Configuration Point
+### 1.1 Simulation Validates at a Single Configuration Point
 
 **Flagged by:** Agent 02 (Network Topology), Agent 06 (Scalability), Agent 10 (Practical Deployment)
 
@@ -105,17 +81,7 @@ The BLE mesh integration via BitChat is a genuine capability that no mainstream 
 
 ## 4. Contradictions Between Reviews
 
-### 4.1 Is the Availability Guarantee Good Enough?
-
-**Agent 02** argues the 10^-9 claim is overstated by 4-5 orders of magnitude due to correlated failures, arriving at ~10^-3 to 10^-4.
-
-**Agent 06** argues the availability math is "robust" and "checks out even under pessimistic assumptions."
-
-**Agent 07** recalculates with realistic mobile uptime (2% instead of 30%) and still gets P(unavailable) = 2.31 x 10^-7 -- "still very low."
-
-**Resolution:** Agent 02 is more persuasive because they model the *most realistic threat* -- timezone-correlated failures during overnight hours. Agent 06 validates the per-user storage math (which is correct) but does not challenge the independence assumption. Agent 07's recalculation still assumes independence. The honest answer: availability is 99.9-99.97% under realistic correlation, not 99.9999999%. This is still excellent for a peer-to-peer system and better than any single relay, but it is not "enterprise-grade."
-
-### 4.2 Is the Cold-Start Problem Survivable?
+### 4.1 Is the Cold-Start Problem Survivable?
 
 **Agent 04** is pessimistic: "Every decentralized protocol that has died -- and most of them have -- died during bootstrap."
 
@@ -124,24 +90,6 @@ The BLE mesh integration via BitChat is a genuine capability that no mainstream 
 **Agent 03** occupies a middle ground: the cooperative equilibrium exists but is fragile, and there is no mechanism to guarantee convergence to it.
 
 **Resolution:** The pessimism is warranted by historical precedent (SSB, Diaspora, etc.), but the protocol's Nostr compatibility provides a safety net that those protocols lacked. Users can use Gozzip as a Nostr client during bootstrap with zero penalty. This means the cold-start does not produce a *worse* experience than the status quo -- it just does not produce a *better* one until critical mass is reached. The protocol survives bootstrap if the first client is an excellent Nostr client. It dies during bootstrap if the first client is a mediocre Nostr client with a sovereignty pitch.
-
-### 4.3 How Serious Is the Privacy Deficit?
-
-**Agent 05** concludes: "Gozzip is not a privacy protocol. It is a censorship-resistant social networking protocol with some privacy features."
-
-**Agent 01** is more measured: "The protocol's greatest cryptographic strength is its honesty" about privacy limitations.
-
-**Agent 08** is harshest: the relay cartel attack provides "critical" impact through passive observation alone.
-
-**Resolution:** Agent 05's framing is the most accurate. The protocol provides genuine improvements over Nostr (key hierarchy, WoT-bounded gossip, encrypted endpoint hints) but is categorically weaker than purpose-built privacy tools (Tor, Signal, Briar). The protocol should clearly position itself as censorship-resistant, not privacy-preserving, against motivated adversaries.
-
-### 4.4 Are Pact Incentives Sufficient?
-
-**Agent 03** argues the incentive model has three structural gaps (no positive incentive for altruistic roles, weak enforcement against strategic defection, insufficient marginal benefit of cooperation).
-
-**Agent 06** praises the incentive model as "elegant" and says "pact-aware gossip priority creates organic incentives without tokens."
-
-**Resolution:** Both are correct about different aspects. The *design* of the incentive gradient (more contribution = more reach) is elegant. The *magnitude* of the gradient is likely insufficient for most users. Agent 03's analysis is more rigorous -- the incentive model works for active content creators but fails for lurkers (60-80% of social media users), bandwidth-constrained users, and anyone who does not value wider reach. The protocol should acknowledge that pacts are primarily beneficial for content producers and design an explicit "consumer" tier for read-only users.
 
 ---
 
@@ -155,11 +103,7 @@ NIP-29 group chats are inherited but interaction with pact storage is unspecifie
 **Agent 10**
 The whitepaper is thorough but not implementable without interpretation. Byte-level formats, canonical serializations, state transition diagrams, and test vectors are needed.
 
-### 5.3 Negative Feedback Loop Analysis
-**Agents 03, 04**
-The plausibility analysis models positive feedback (growth spiral) but not negative feedback (contraction spiral). Churn, pact loss, availability degradation, and accelerated churn need to be modeled explicitly.
-
-### 5.4 Product Specification
+### 5.3 Product Specification
 **Agent 04**
 Protocol spec exists; product spec does not. What does the app look like? What is the onboarding flow? What does a new user see in their first 5 minutes?
 
@@ -177,21 +121,7 @@ The conditions for viability:
 
 2. **The full-node assumption must be relaxed.** The protocol works at 5% full nodes. Design for this reality. The 25% target is an optimization goal, not a survival requirement.
 
-3. **~~A media layer must be designed before launch.~~** Resolved. Media layer designed -- events contain content-addressed hash references to media blobs stored separately. See [Media Layer](../media-layer.md).
-
-4. **The privacy claims must be honest.** Remove "blinding," present realistic availability numbers, acknowledge permanent relay dependency for delivery. Users and reviewers who discover overstated claims will dismiss the entire protocol.
-
-5. **~~Legal compliance (GDPR deletion, content safety) must be addressed.~~** Resolved. Deletion request (kind 10063), content report (kind 10064), and moderation framework designed. See [Moderation Framework](../moderation-framework.md) and [Push Notifications](../push-notifications.md).
-
-### 6.2 Minimum Set of Changes for Viability
-
-The changes listed in Section 2 (Critical Issues), with emphasis on:
-
-1. ~~Design media separation~~ -- **Done.** See [Media Layer](../media-layer.md).
-2. ~~Design push notifications~~ -- **Done.** See [Push Notifications](../push-notifications.md). Kind 10062 (notification relay registration) designed.
-3. ~~Implement deletion request kind~~ -- **Done.** Kind 10063 (deletion request) and kind 10064 (content report) designed. See [Moderation Framework](../moderation-framework.md).
-
-### 6.3 Honest Positioning
+### 6.2 Honest Positioning
 
 **Not what the project wants to be:** A general-purpose social platform that replaces Nostr, Mastodon, and Bluesky with full data sovereignty, privacy, and offline operation.
 
@@ -199,7 +129,7 @@ The changes listed in Section 2 (Critical Issues), with emphasis on:
 
 Agent 09's elevator pitch captures it best: "Gozzip is a protocol extension for Nostr that moves data ownership from relay operators to the social graph. It uses bilateral storage pacts to create a distributed storage mesh that makes relays optional for data custody. Your existing Nostr identity, events, and relays work unchanged. Gozzip adds the layer that makes your data survive relay shutdowns, resist censorship, and work offline. It is not a replacement for Nostr; it is what Nostr becomes when users own their data."
 
-### 6.4 Timeline Assessment
+### 6.3 Timeline Assessment
 
 **Current state:** Analytically validated design with a simulator and a reference library (`gozzip-core`) committed as a mandatory deliverable. No production code yet, no real users.
 
@@ -219,19 +149,10 @@ Agent 09's elevator pitch captures it best: "Gozzip is a protocol extension for 
 
 Based on the combined analysis of all 10 reviews, in recommended execution order.
 
-### ~~1. Design the Media Layer~~ -- Done
-Resolved. See [Media Layer](../media-layer.md). Events contain content-addressed hash references (`media` tags) to media blobs stored separately from event pacts. Optional media pacts provide peer-to-peer redundancy for Keepers.
-
-### 2. Write Formal Protocol Specification with Test Vectors
+### 1. Write Formal Protocol Specification with Test Vectors
 **Effort:** 4-8 weeks
 **Impact:** Enables independent implementation; resolves specification ambiguities
 **Source:** Agent 10
-
-### ~~3. Design Push Notification Architecture~~ -- Done
-Resolved. See [Push Notifications](../push-notifications.md). Kind 10062 (push notification registration) enables privacy-preserving wake-up notifications via notification relays. Push payload contains no message content -- app wakes, syncs from relays/pact partners, generates local notification.
-
-### ~~4. Design GDPR Deletion Request Event Kind and Content Reporting Mechanism~~ -- Done
-Resolved. See [Moderation Framework](../moderation-framework.md). Kind 10063 (deletion request) provides GDPR Article 17 compliance. Kind 10064 (content report) enables content reporting with categories (spam, harassment, illegal, CSAM). Pact partners can drop pacts for illegal content without reliability penalty. NIP-32 labeling service compatibility provides third-party content filtering.
 
 ---
 
@@ -239,8 +160,8 @@ Resolved. See [Moderation Framework](../moderation-framework.md). Kind 10063 (de
 
 The Gozzip protocol is one of the most analytically rigorous decentralized social protocol designs reviewed by these agents. The core architecture is sound. The documentation is honest. The design learns from the right predecessors (SSB's failure, Nostr's limitations, Filecoin's complexity).
 
-The protocol's weaknesses are not architectural dead-ends -- they are engineering problems with known solution patterns, overstated claims that can be corrected, and missing features that can be added. The single greatest risk is not technical failure but bootstrap economics: whether the first 5,000 users will tolerate the experience long enough for the protocol's value to materialize.
+The protocol's weaknesses are not architectural dead-ends -- they are engineering problems with known solution patterns and missing features that can be added. The single greatest risk is not technical failure but bootstrap economics: whether the first 5,000 users will tolerate the experience long enough for the protocol's value to materialize.
 
-The major design gaps identified by reviewers have been addressed: the media layer is designed (see [Media Layer](../media-layer.md)), push notifications are designed (see [Push Notifications](../push-notifications.md)), and GDPR deletion and content moderation are designed (see [Moderation Framework](../moderation-framework.md)). The remaining priority is writing a formal protocol specification, building an excellent Nostr client with sovereignty as a background benefit, targeting a specific community for initial adoption, and letting the pact network grow organically from a strong foundation.
+The remaining priority is writing a formal protocol specification, building an excellent Nostr client with sovereignty as a background benefit, targeting a specific community for initial adoption, and letting the pact network grow organically from a strong foundation.
 
 The protocol is ready for implementation. It is not ready for production deployment. The gap between those two states is where the real work begins.

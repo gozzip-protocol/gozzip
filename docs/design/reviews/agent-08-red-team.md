@@ -81,7 +81,7 @@ Five major relay operators collude. They control perhaps 60-80% of relay traffic
    - Timing correlation: pubkey A stores a blob at 14:03:01, pubkey B fetches at 14:03:04. Repeated for the same pair = probable pact relationship.
    - Across 5 relays, the cartel can map a significant fraction of the pact topology.
 
-3. **Blinded request deanonymization.** Kind 10057 data requests use blinded pubkeys: `bp = H(target_root_pubkey || YYYY-MM-DD)`. The cartel can pre-compute these hashes for every known pubkey (they have the full list from step 1). When a blinded request arrives, they look up which pubkey it targets. **The blinding scheme provides zero protection against any relay that knows the target pubkey.** The daily rotation prevents cross-day linking by passive observers, but relay operators who know the pubkey set can trivially reverse the hash for every request they see.
+3. **Pseudonymous request deanonymization.** Kind 10057 data requests use pseudonymous pubkeys: `bp = H(target_root_pubkey || YYYY-MM-DD)`. The cartel can pre-compute these hashes for every known pubkey (they have the full list from step 1). When a pseudonymous request arrives, they look up which pubkey it targets. **The pseudonymous scheme provides zero protection against any relay that knows the target pubkey.** The daily rotation prevents cross-day linking by passive observers, but relay operators who know the pubkey set can trivially reverse the hash for every request they see.
 
 #### Phase 2: Censorship
 
@@ -111,7 +111,7 @@ Five major relay operators collude. They control perhaps 60-80% of relay traffic
 1. **Outbox model fragmentation.** Users publish to multiple relays. The cartel with 5 relays might miss traffic going through the other 995 relays. But if those 5 relays handle 60-80% of traffic, fragmentation is limited.
 2. **Pact partner storage.** Sovereign users (15+ pacts) have their data stored by 20 pact partners. Relay censorship cannot delete this data. But relay censorship *can* prevent new users from discovering it.
 3. **NIP-44 encryption.** Content is encrypted. The cartel cannot read DMs or pact negotiation content. But metadata (who talks to whom, when, how often) is exposed.
-4. **Blinded requests.** Offer no protection against the cartel. As noted above, any relay that knows the pubkey set can trivially reverse the daily hash.
+4. **Pseudonymous requests.** Offer no protection against the cartel. As noted above, any relay that knows the pubkey set can trivially reverse the daily hash.
 
 ### Verdict
 
@@ -120,15 +120,13 @@ Five major relay operators collude. They control perhaps 60-80% of relay traffic
 | Exploitability | **Moderate** (requires 5 operators to collude, but relay concentration makes this plausible) |
 | Impact | **Critical** |
 
-The relay cartel is the protocol's most dangerous adversary class. The blinded request scheme is ineffective against relay operators -- it was designed against passive network observers, not the relays themselves. The cartel can reconstruct social graphs, infer pact topology, deanonymize read patterns, selectively censor, and sabotage pact challenge-response. The only saving grace is that Sovereign users (15+ pacts) can survive relay censorship. But the cartel can prevent users from *reaching* Sovereign phase by disrupting pact formation during Bootstrap.
+The relay cartel is the protocol's most dangerous adversary class. The pseudonymous request scheme is ineffective against relay operators -- it was designed against passive network observers, not the relays themselves. The cartel can reconstruct social graphs, infer pact topology, deanonymize read patterns, selectively censor, and sabotage pact challenge-response. The only saving grace is that Sovereign users (15+ pacts) can survive relay censorship. But the cartel can prevent users from *reaching* Sovereign phase by disrupting pact formation during Bootstrap.
 
 ### Suggested Mitigations
 
-1. **Strengthen blinded requests.** The current `H(pubkey || date)` scheme is trivially reversible by any party that knows the pubkey. Consider a scheme where the requester generates a random blinding factor and the storage peer uses a private matching protocol (e.g., PSI-style) that doesn't reveal the target to the relay.
-2. **Relay diversity requirements.** Client-side enforcement: distribute NIP-46 pact communication across at least 5 different relays, with no relay handling more than 30% of a user's pact traffic. Rotate relays periodically.
-3. **Out-of-band challenge-response.** For Full-Full pact pairs, consider allowing challenge-response to travel via direct connections (NAT-hole-punched) rather than relay-mediated channels, removing the relay from the critical path.
-4. **Pact formation fallback.** If relay-mediated pact negotiation fails repeatedly, fall back to direct peer-to-peer negotiation via FIPS or BLE mesh, bypassing relays entirely.
-5. **Canary relay probing.** Clients periodically publish test events to their relays and check (via alternative channels) whether those events are being served. Detects selective dropping.
+1. **Strengthen pseudonymous requests.** The current `H(pubkey || date)` scheme is trivially reversible by any party that knows the pubkey. Consider a scheme where the requester generates a random blinding factor and the storage peer uses a private matching protocol (e.g., PSI-style) that doesn't reveal the target to the relay.
+2. **Out-of-band challenge-response.** For Full-Full pact pairs, consider allowing challenge-response to travel via direct connections (NAT-hole-punched) rather than relay-mediated channels, removing the relay from the critical path.
+3. **Pact formation fallback.** If relay-mediated pact negotiation fails repeatedly, fall back to direct peer-to-peer negotiation via FIPS or BLE mesh, bypassing relays entirely.
 
 ---
 
@@ -189,7 +187,7 @@ The cheapest path to full deanonymization:
 ### Protocol Defenses
 
 1. **Outbox model.** Prevents direct IP exposure between social contacts. But relays see IPs.
-2. **Blinded requests.** Prevent observers from seeing read patterns. But relay operators can reverse the hash (see Attack 2).
+2. **Pseudonymous requests.** Prevent observers from seeing read patterns. But relay operators can reverse the hash (see Attack 2).
 3. **Ephemeral keys for BLE.** Prevent identity linkage in nearby mode. But timing correlation can bridge the gap.
 4. **NIP-44/NIP-59 encryption.** Content is protected. Device metadata (types, uptime) is now encrypted in kind 10050. But timing metadata remains public.
 
@@ -240,7 +238,7 @@ The critical insight: challenge-response and data serving are separate operation
 A pact partner can:
 - Pass hash challenges (proves possession).
 - Pass serve challenges (proves local storage).
-- Refuse to respond to kind 10057 blinded requests (no protocol penalty for this -- serving gossip requests is voluntary).
+- Refuse to respond to kind 10057 pseudonymous requests (no protocol penalty for this -- serving gossip requests is voluntary).
 
 The attacker stores the data and passes all challenges, maintaining a 90%+ reliability score, while simultaneously refusing to serve the data to anyone who asks for it via gossip.
 
@@ -280,61 +278,7 @@ The data hostage attack is expensive to execute and does not achieve total data 
 
 ## Attack 5: Guardian Abuse
 
-### Objective
-
-Become a Guardian, accept a newcomer (Seedling), then selectively censor or delay their events during the critical bootstrap phase. Damage the Seedling's ability to build WoT relationships before they can form enough pacts to become independent.
-
-### Step-by-Step Attack Plan
-
-1. **Reach Sovereign phase.** Build a legitimate identity with 15+ reciprocal pacts. This takes 2-4 months of genuine network participation.
-
-2. **Volunteer as Guardian.** Publish kind 10055 with `type: guardian`. Wait for a Seedling match.
-
-3. **Accept the Seedling.** Form a guardian pact (kind 10053 with `type: guardian`). Begin storing the Seedling's events.
-
-4. **Selective censorship.** The Guardian is one of the Seedling's only (possibly the *only*) storage peers. The Guardian:
-   - Stores the Seedling's events (passes challenges).
-   - Refuses to forward the Seedling's events via gossip.
-   - Delays responding to kind 10057 requests for the Seedling's data, making the Seedling appear unreliable or inactive to the community.
-
-5. **Social isolation.** During the Seedling's first 90 days, potential WoT contacts try to read the Seedling's events but get slow or no responses. They assume the Seedling is unreliable and don't follow back. The Seedling fails to build WoT relationships and remains stuck in Bootstrap phase.
-
-6. **Pact expiry.** After 90 days, the guardian pact expires. The Seedling has few or no reciprocal pacts. Their data is effectively lost (no storage peers, relay-only). The Seedling must start over.
-
-### Cost Estimate
-
-- **Time:** 2-4 months to reach Sovereign phase (one-time), then minimal ongoing effort per Seedling.
-- **Money:** Minimal (standard operating costs for a Gozzip node).
-- **Expertise:** Low. Just delay responses and don't forward gossip.
-
-### Protocol Defenses
-
-1. **One Guardian per Seedling.** The Seedling can have only one guardian pact, but can also form bootstrap pacts (by following someone). The Guardian's censorship is mitigated if the Seedling follows other users who form bootstrap pacts.
-2. **Bootstrap pacts.** The Seedling can follow up to N users, each of whom creates a bootstrap pact. This provides alternative storage peers independent of the Guardian.
-3. **Relay publishing.** During Bootstrap phase, the Seedling publishes to relays primarily. The Guardian cannot censor relay-stored events. Other users can discover the Seedling's content via relays.
-4. **Guardian pact limit.** Each Guardian can hold only one guardian pact at a time, limiting the attacker's throughput.
-
-### The Real Vulnerability
-
-The protocol's defenses are structurally adequate but depend on the Seedling's behavior. A Seedling who relies solely on their Guardian without also following community members and publishing to relays is vulnerable. The Guardian abuse attack exploits Seedling passivity, not protocol weakness.
-
-However, there is a genuine gap: **the protocol provides no mechanism for a Seedling to evaluate Guardian quality.** A Seedling matched with a malicious Guardian has no way to detect the censorship except by noticing their own slow growth, which is indistinguishable from simply being uninteresting.
-
-### Verdict
-
-| Dimension | Rating |
-|-----------|--------|
-| Exploitability | **Easy** (any Sovereign user can become a Guardian) |
-| Impact | **Medium** (affects individual Seedlings, not systemic; relay publishing provides a safety net) |
-
-The attack is easy to execute but limited in impact. The Seedling's relay publishing provides an independent channel that the Guardian cannot censor. The attack works best against Seedlings who don't understand the protocol and don't actively seek alternative pacts.
-
-### Suggested Mitigations
-
-1. **Guardian reputation tracking.** Track how many Seedlings a Guardian has supported and how many reached Hybrid phase. Guardians with a history of Seedlings failing to progress should be deprioritized in matching.
-2. **Multiple Guardian option.** Allow Seedlings to have 2-3 guardian pacts instead of 1. This eliminates single-Guardian dependency at the cost of more Guardian storage obligation.
-3. **Seedling-initiated Guardian replacement.** Allow a Seedling to request a new Guardian if their current one is unresponsive to gossip queries. The Seedling publishes a new kind 10055 with `type: guardian` and the old guardian pact is terminated.
-4. **Client-side guidance.** During Bootstrap phase, clients should aggressively prompt Seedlings to follow community members (triggering bootstrap pacts) rather than relying solely on the Guardian.
+All items addressed. Guardian-incentives.md design doc covers reputation tracking, multi-guardian support, seedling-initiated replacement, and anti-gaming mechanisms.
 
 ---
 
@@ -502,8 +446,7 @@ The key hierarchy design works as intended. Device compromise is contained to th
 1. **Consider even faster DM key rotation for high-risk users.** The configurable 30-90 day rotation is a good improvement; consider allowing 7-day rotation for users who want tighter forward secrecy bounds. Cost: more frequent kind 10050 updates and DM key distribution.
 2. **Device revocation propagation speed.** When a kind 10050 revocation is published, it must propagate quickly to all relays and peers. Consider a "revocation priority" mechanism that ensures revocation events are propagated faster than regular events.
 3. **Client-side anomaly detection.** Clients should alert when events are signed by a device key from an unexpected IP, at unexpected times, or with unusual content patterns. This enables faster detection of compromise.
-4. **Governance key isolation enforcement.** Clients should strongly discourage (or prevent) placing the governance key on mobile devices. Desktop-only or hardware-wallet-only governance key should be the default.
-5. **DM key compartmentalization.** Consider deriving per-conversation DM keys rather than a single DM key for all conversations. A compromised device reveals DMs only for conversations actively cached on that device, not all conversations.
+4. **DM key compartmentalization.** Consider deriving per-conversation DM keys rather than a single DM key for all conversations. A compromised device reveals DMs only for conversations actively cached on that device, not all conversations.
 
 ---
 
@@ -515,9 +458,9 @@ The key hierarchy design works as intended. Device compromise is contained to th
 | 2 | Relay cartel | Moderate | **Critical** | Challenge-response transit sabotage |
 | 3 | Targeted deanonymization | **Easy** | **Critical** | Relay logs expose IP |
 | 4 | Data hostage | Hard | Medium | Challenge-response doesn't measure gossip serving willingness |
-| 5 | Guardian abuse | **Easy** | Medium | No Guardian quality tracking; single-Guardian dependency |
+| 5 | Guardian abuse | -- | -- | Addressed by guardian-incentives.md |
 | 6 | DM timing attack | **Easy** | High | NIP-59 gift wrap exposes both sender and recipient to relay |
-| 7 | Device compromise cascade | Hard | High | Governance key discipline is user-dependent; 30-90 day DM exposure window |
+| 7 | Device compromise cascade | Hard | High | 30-90 day DM exposure window |
 
 ## Prioritized Recommendations
 
@@ -527,22 +470,16 @@ These are the highest-leverage fixes based on the intersection of exploitability
 
 A relay cartel can selectively delay NIP-46 blobs carrying challenge responses, causing pact degradation that looks like network flakiness rather than an attack. This threatens pact stability for any user dependent on relay-mediated communication.
 
-**Fix:** For Full-Full pact pairs, allow challenge-response via direct connections (NAT-hole-punched) rather than relay-mediated channels. Distribute NIP-46 pact communication across at least 5 different relays with no relay handling more than 30% of traffic.
+**Fix:** For Full-Full pact pairs, allow challenge-response via direct connections (NAT-hole-punched) rather than relay-mediated channels. Relay diversity requirements (min 3 relays, canary probing, collusion model) are now specified in relay-diversity.md.
 
 ### P1: DM metadata fully exposed to relay operators (Attack 6)
 
-NIP-59 gift wraps expose both sender (via signing key) and recipient (via `p` tag) to relay operators. DM content is encrypted, but the communication graph is fully visible.
+NIP-59 gift wraps expose both sender (via signing key) and recipient (via `p` tag) to relay operators. DM content is encrypted, but the communication graph is fully visible. This is now acknowledged in the whitepaper's "What We Don't Know Yet" section.
 
-**Fix:** This requires changes to NIP-59 usage. Consider blinded recipient identifiers, decoy traffic, or DM relay rotation as layered mitigations.
+**Fix:** This requires changes to NIP-59 usage. Consider pseudonymous recipient identifiers, decoy traffic, or DM relay rotation as layered mitigations.
 
 ### P1: Sybil WoT infiltration enables eclipse attacks (Attack 1)
 
 No minimum mutual-follow age for pact formation; WoT cluster diversity is a client-side heuristic, not a protocol constraint. An attacker with 2 months of patience can occupy a majority of a target's pact slots.
 
 **Fix:** Require mutual-follow relationships to be at least 30 days old before pact formation. Enforce WoT cluster diversity at the protocol level, not just client-side.
-
-### P2: Guardian abuse has no quality tracking (Attack 5)
-
-Any Sovereign user can become a Guardian and selectively censor a Seedling during the critical bootstrap phase. There is no mechanism for Seedlings to evaluate Guardian quality or for the network to track Guardian success rates.
-
-**Fix:** Track how many Seedlings a Guardian has supported and how many reached Hybrid phase. Allow Seedlings to have 2-3 guardian pacts instead of 1.

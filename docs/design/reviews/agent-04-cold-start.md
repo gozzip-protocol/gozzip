@@ -13,9 +13,9 @@ The Gozzip protocol is architecturally sound at steady state. The numbers work a
 
 The protocol's documentation is honest about relay dependency during bootstrap (Section 10 of the whitepaper, Section 10 of the plausibility analysis). But it treats bootstrap as a phase to pass through, not as the existential risk it actually is. Every decentralized protocol that has died -- and most of them have -- died during bootstrap. The question is not "does the math work at scale?" but "can the first 1,000 users tolerate the experience long enough to get there?"
 
-This review identifies 10 specific bootstrap risks, rates their severity, and proposes mitigations.
+This review identifies the remaining bootstrap risks, rates their severity, and proposes mitigations.
 
-**Overall assessment:** The protocol has 3 critical risks, 4 significant risks, 2 minor risks, and 1 nitpick. The critical risks are individually survivable but compound dangerously. If all three manifest simultaneously -- which is the default scenario for a new protocol -- the network stalls before reaching minimum viable density.
+**Overall assessment:** The protocol has 2 critical risks, 3 significant risks, and 1 minor risk remaining (guardian availability resolved by genesis-bootstrap.md). The critical risks are individually survivable but compound dangerously. If both manifest simultaneously -- which is the default scenario for a new protocol -- the network stalls before reaching minimum viable density.
 
 ---
 
@@ -45,27 +45,6 @@ This is the classic cold-start trap: the product is worse than alternatives duri
 - The first version of the client must ship with at least one feature that is *immediately* better than Nostr, independent of pact formation. Candidates: native multi-device support (kind 10050 device delegation), encrypted DM threading (kind 10052), or social recovery (kind 10060-10061). These work from day one and give users a reason to stay while pacts form in the background.
 - The roadmap should explicitly define "Phase 0: Better Nostr Client" before "Phase 1: Decentralize Storage." Ship the client improvements first. Let users adopt for the UX. Then activate pact formation once the user base reaches critical mass.
 - Consider seeding the network with 5-10 operator-run full nodes that act as guardians and bootstrap pact partners during the first 6 months. This is centralized scaffolding, but it's honest and removable.
-
----
-
-## 2. Guardian Availability
-
-**The assumption the protocol makes:** Guardians are Sovereign-phase users (15+ pacts) who volunteer to store one Seedling's data. The pay-it-forward framing encourages former Seedlings to become Guardians (ADR 009, incentive model).
-
-**The real-world challenge:** The network starts with zero Sovereign-phase users. The first guardian cannot exist until someone has 15+ pacts, which requires a sufficiently dense WoT. At 100 users, it is unlikely that anyone has reached Sovereign phase. At 1,000 users, some early adopters might qualify -- but they are the exact users whose pact capacity is already maxed out because everyone wants pacts with reliable early adopters.
-
-The guardian mechanism assumes a steady state where there is a surplus of Sovereign users relative to Seedlings. During growth phases (network doubling), new Seedlings outnumber available Guardians. During the initial launch, Guardians literally do not exist.
-
-The bootstrap lifecycle (ADR 006) lists: "Seedling joins -> Guardian pact forms -> First follow -> bootstrap pact." But step 2 requires a Guardian, and there are none at launch.
-
-**Whether the protocol addresses it adequately:** No. The bootstrap lifecycle in ADR 006 assumes Guardians exist, but does not address how the first Guardians emerge. The bootstrap pact mechanism (follow someone -> they store your data temporarily) partially compensates, but bootstrap pacts are one-sided and capacity-limited -- a popular early adopter accumulating 1,000 bootstrap pacts is identified as a "bottleneck" in the plausibility analysis but treated as low risk.
-
-**Severity:** Significant.
-
-**Suggested fix:**
-- Define a "Genesis Guardian" role: protocol-affiliated full nodes that serve as Guardians during the first phase. These are centralized, but transparent and temporary. They are removed once organic Guardian supply exceeds Seedling demand.
-- Lower the Guardian threshold during early network phases. If the network has fewer than 1,000 users, anyone with 5+ pacts (Hybrid phase) can volunteer as a Guardian. The requirement ratchets up to 15+ pacts as the network grows.
-- Track Guardian supply/demand ratio as a network health metric. If supply drops below 1 Guardian per 10 Seedlings, alert the community.
 
 ---
 
@@ -121,12 +100,11 @@ The 7-day account age requirement is a Sybil defense, and it's necessary. But it
 
 Volume matching adds another constraint. In the early network, user activity levels vary wildly. A power user (100 events/day) cannot pact with a casual user (5 events/day) because 95/100 = 95% imbalance, far exceeding the 30% tolerance. This fragments the pact market, especially when the network is small.
 
-**Whether the protocol addresses it adequately:** The phased approach (invisible storage first) means users don't consciously experience the wait. But they also don't experience the benefit. The bootstrap and guardian pacts provide interim coverage, but as noted in issues 1 and 2, these have their own availability problems during early network phases.
+**Whether the protocol addresses it adequately:** The phased approach (invisible storage first) means users don't consciously experience the wait. But they also don't experience the benefit. The bootstrap and guardian pacts provide interim coverage, but as noted in issue 1, these have their own availability problems during early network phases.
 
 **Severity:** Significant.
 
 **Suggested fix:**
-- Consider relaxing volume matching during Bootstrap phase. A 50% or even 100% tolerance during Bootstrap (expiring to 30% at Hybrid) would allow more pact formation when the pool is thin. The cost is asymmetric storage, but the benefit is faster WoT development.
 - Reduce the account age requirement during early network phases, or replace it with proof-of-work (a la NIP-13) for pact eligibility. A 7-day wait is painful UX; a PoW cost is invisible but effective.
 - Track and display pact progress in the client UX. "You have 7 of 15 pacts needed for sovereign operation" gives users a goal and reduces the feeling of stagnation. Gamification works.
 - Consider allowing one-way follows (not just mutual follows) to count for pact eligibility during Bootstrap. The WoT boundary can tighten as the network matures.
@@ -263,15 +241,14 @@ Once below critical mass, the protocol degrades to "Nostr with extra overhead," 
 
 **The SSB cautionary tale:** Secure Scuttlebutt experienced exactly this dynamic. Its pub server model had a similar critical-mass requirement. When growth stalled and pub operators left, data availability declined, new user onboarding broke, and the network entered a slow death spiral. SSB's technical ideas were sound; its bootstrap economics were not.
 
-**Whether the protocol addresses it adequately:** Not at all. The incentive model document discusses the positive feedback loop in detail but never mentions the negative one. The "no cliff" claim is about individual user experience (graceful degradation), not about network-level dynamics (catastrophic collapse).
+**Whether the protocol addresses it adequately:** Partially. The plausibility analysis now acknowledges negative feedback/contraction risk and clustering sensitivity. But the analysis is qualitative -- no simulation of contraction dynamics has been done.
 
 **Severity:** Critical (if the network grows and then shrinks) / Minor (if the network never grows past critical mass, it just stays as Nostr-compatible and no harm is done).
 
 **Suggested fix:**
-- Model the negative feedback loop explicitly. Simulate: what happens when 30% of users leave over 3 months? Do the remaining users' pact counts recover, or do they cascade?
+- Simulate the negative feedback loop in the simulator: what happens when 30% of users leave over 3 months? Do the remaining users' pact counts recover, or do they cascade?
 - Define "network health metrics" and monitor them: Sovereign ratio, average pact count, full-node percentage, pact formation rate vs. pact loss rate. Publish a dashboard.
 - Design a "graceful contraction" mode: if pact counts drop network-wide, automatically increase relay dependency. The protocol should degrade smoothly to Nostr-equivalent operation rather than failing in confusing ways.
-- Consider irrevocable seed commitments: core team and early supporters commit to running full nodes for a minimum period (2 years) regardless of network trajectory. This puts a floor under the full-node count.
 
 ---
 
@@ -280,13 +257,12 @@ Once below critical mass, the protocol degrades to "Nostr with extra overhead," 
 | # | Issue | Severity | Protocol Addresses It? | Key Risk |
 |---|-------|----------|----------------------|----------|
 | 1 | Chicken-and-egg (no value during bootstrap) | Critical | Partially (phased rollout) | Users have no reason to adopt during the phase where adoption is most needed |
-| 2 | Guardian availability at launch | Significant | No (assumes Guardians exist) | First Seedlings have no Guardians; bootstrap pacts are the only fallback |
 | 3 | Relay dependency undercuts value proposition | Critical | Partially (honest about it) | "Nostr without relays" is the pitch; "Nostr with extra overhead" is the reality for months |
-| 4 | WoT formation speed (weeks to sovereignty) | Significant | Partially (phased approach) | 1-2 month timeline to useful pacts; competitors offer instant functionality |
+| 4 | WoT formation speed (weeks to sovereignty) | Significant | Partially (parameter relaxation in genesis-bootstrap.md) | 1-2 month timeline to useful pacts; competitors offer instant functionality |
 | 5 | Nostr migration requires mutual adoption | Significant | No (assumes gradual migration) | Pacts require both parties on Gozzip; lone migrant gets zero benefit |
 | 6 | Minimum viable network is 3,000-5,000 users | Significant | Not modeled | Must sustain 3-6 months of growth with no advantage before protocol benefits emerge |
 | 7 | No compelling pitch vs. incumbents | Minor | Partially (UX vision exists) | "Data sovereignty" has never driven mass adoption; protocol spec but no product spec |
-| 8 | Death spiral if network shrinks | Significant | Not addressed | Positive feedback loop reverses; no analysis of contraction dynamics |
+| 8 | Death spiral if network shrinks | Significant | Partially (contraction risk acknowledged) | Positive feedback loop reverses; no simulation of contraction dynamics |
 
 ---
 
@@ -296,23 +272,19 @@ Once below critical mass, the protocol degrades to "Nostr with extra overhead," 
 
 1. **Ship features that work without pacts** as the initial differentiator: multi-device delegation, encrypted DM threading, social recovery. Users adopt for UX; sovereignty comes later.
 
-2. **Run 5-10 operator-controlled full nodes** as Genesis Guardians and bootstrap pact partners for the first 6-12 months. Be transparent about the centralized scaffolding. Remove it when organic supply exceeds demand.
-
 ### Should-do during early growth
 
-3. **Model negative feedback loops** (churn -> pact loss -> availability drop -> more churn). Simulate network contraction scenarios. Identify the critical mass threshold empirically.
+2. **Simulate negative feedback loops** in the simulator (churn -> pact loss -> availability drop -> more churn). Identify the critical mass threshold empirically.
 
-4. **Define and publish network health metrics**: sovereignty ratio, pact formation rate, full-node percentage, guardian supply/demand ratio. Make the network's growth visible to users and operators.
+3. **Define and publish network health metrics**: sovereignty ratio, pact formation rate, full-node percentage, guardian supply/demand ratio. Make the network's growth visible to users and operators.
 
-5. **Target a specific community** for initial adoption (activists, preppers, conference-goers) rather than the general Nostr population. A dense cluster of 200 committed users is more valuable than 2,000 casual adopters.
-
-6. **Relax volume matching and account age requirements** during early network phases. Tighten them as the network grows and the pact market becomes liquid.
+4. **Target a specific community** for initial adoption (activists, preppers, conference-goers) rather than the general Nostr population. A dense cluster of 200 committed users is more valuable than 2,000 casual adopters.
 
 ### Nice-to-have
 
-7. **Write a product spec** alongside the protocol spec. Define the onboarding flow, the first-five-minutes experience, and the UI that surfaces pact progress.
+5. **Write a product spec** alongside the protocol spec. Define the onboarding flow, the first-five-minutes experience, and the UI that surfaces pact progress.
 
-8. **Build the BLE/FIPS transport early** and demonstrate it at a real event. This is the one feature no competitor can match, and it serves the exact demographic most likely to adopt.
+6. **Build the BLE/FIPS transport early** and demonstrate it at a real event. This is the one feature no competitor can match, and it serves the exact demographic most likely to adopt.
 
 ---
 

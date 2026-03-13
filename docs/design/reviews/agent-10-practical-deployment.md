@@ -43,9 +43,7 @@ That is roughly **2-3 years for a small team (2-3 engineers)** to reach a shippa
 
 2. **WoT graph computation at scale.** Computing 2-hop WoT for 150+ follows, each with their own follow lists, means fetching and indexing thousands of follow-list events. This has to happen on every app launch and be kept reasonably fresh. In a browser extension with limited background time, this is a non-trivial data pipeline.
 
-3. **Pact state machine correctness.** The pact lifecycle (request -> offer -> accept -> active -> challenge -> degrade -> replace) with volume balancing, standby promotion, renegotiation jitter, and reliability scoring is a complex distributed state machine. Two independent implementations will almost certainly diverge on edge cases: what happens when a challenge times out during a renegotiation? When a standby is promoted but the original partner comes back? When volume drift triggers renegotiation for both sides simultaneously?
-
-4. **Multi-device checkpoint reconciliation.** The fork-and-reconcile model for replaceable events (kind 0, kind 3) requires a deterministic merge algorithm. The documentation specifies one, but deterministic merge across independent implementations requires an extremely precise specification. The current description in `multi-device-sync.md` is prose, not a formal spec. An implementor would need to make judgment calls on edge cases.
+3. **Multi-device checkpoint reconciliation.** The fork-and-reconcile model for replaceable events (kind 0, kind 3) requires a deterministic merge algorithm. The documentation specifies one, but deterministic merge across independent implementations requires an extremely precise specification. The current description in `multi-device-sync.md` is prose, not a formal spec. An implementor would need to make judgment calls on edge cases.
 
 **Dependency chain:** crypto primitives -> event types -> storage layer -> WoT computation -> pact engine -> gossip routing -> retrieval cascade -> feed model -> UI. This is strictly sequential for the core path. Parallelism is possible for UI and testing, but the protocol core is a deep dependency chain.
 
@@ -53,14 +51,13 @@ That is roughly **2-3 years for a small team (2-3 engineers)** to reach a shippa
 
 - Service worker fragility: **Engineering** (solvable but requires ongoing maintenance)
 - WoT computation at scale: **Engineering** (known problem, solvable with caching)
-- Pact state machine correctness: **Engineering** (solvable with formal specification)
 - Multi-device merge determinism: **Engineering** (solvable with test vectors)
 
 **Severity: Significant.** The implementation timeline is realistic for a funded team but aggressive for an open-source side project. The 26-39 person-month estimate assumes experienced Rust developers familiar with both cryptographic protocols and browser extension development -- a rare combination.
 
 ### Suggested fix
 
-Publish a formal specification for the pact state machine with explicit state transition diagrams and test vectors. The current documentation is well-written prose but not implementable without interpretation. Two independent implementations need a shared conformance test suite, not just shared documentation.
+Publish a conformance test suite for the pact state machine. The pact-state-machine.md specification provides state transition diagrams but two independent implementations need shared test vectors, not just shared documentation.
 
 ---
 
@@ -143,18 +140,15 @@ The simulator architecture is well-designed. It covers the right scenarios (form
 
 **Catastrophic launch scenarios:**
 
-1. **Pact formation deadlock.** If the initial user base is too small (< 500 active users), volume matching within WoT may fail: users cannot find volume-compatible peers within their 2-hop WoT. Everyone stays in Bootstrap phase. The protocol degrades to "Nostr with extra overhead" and never demonstrates its value proposition. This is the cold-start death spiral.
+1. **Full-node ratio collapse.** If the user base skews heavily mobile (as social networks do), the 25% full-node assumption fails. With 5% full nodes, each full node serves 400 pacts (20/0.05). The storage is still manageable (~265 MB), but the bandwidth (300 MB * 5 = 1.5 GB/day outbound) could exceed residential upload capacity. The network's availability guarantees degrade from 10^-9 to potentially 10^-3 or worse.
 
-2. **Full-node ratio collapse.** If the user base skews heavily mobile (as social networks do), the 25% full-node assumption fails. With 5% full nodes, each full node serves 400 pacts (20/0.05). The storage is still manageable (~265 MB), but the bandwidth (300 MB * 5 = 1.5 GB/day outbound) could exceed residential upload capacity. The network's availability guarantees degrade from 10^-9 to potentially 10^-3 or worse.
-
-3. **WoT poisoning.** A coordinated campaign where sock puppet accounts follow each other and real users, building fake WoT presence, then systematically accept pacts and fail challenges. If 20% of a user's pact partners are compromised, data availability drops to ~99.5% (still good) but the user's content reach is gutted because 20% of their forwarding advocates are hostile.
+2. **WoT poisoning.** A coordinated campaign where sock puppet accounts follow each other and real users, building fake WoT presence, then systematically accept pacts and fail challenges. If 20% of a user's pact partners are compromised, data availability drops to ~99.5% (still good) but the user's content reach is gutted because 20% of their forwarding advocates are hostile.
 
 ### Gap classification
 
 - Clock skew interaction: **Engineering** (solvable with explicit UTC specification + wider matching window)
 - Browser extension lifecycle: **Engineering** (solvable with extensive real-device testing)
 - Relay behavior variance: **Engineering** (solvable with relay compatibility testing framework)
-- Cold-start deadlock: **Significant** (architectural concern, mitigated by relay fallback but threatens value proposition)
 - Full-node ratio collapse: **Significant** (architectural concern if mobile dominates)
 
 **Severity: Significant.** The simulation is necessary but not sufficient. A production pilot with 100-500 real users on real devices is the only way to validate the critical assumptions.
@@ -290,15 +284,9 @@ Let me count the keys a Gozzip user manages (compared to other systems):
 
 The key hierarchy (ADR 007) is cryptographically sound. The problem is operational:
 
-1. **Root key in cold storage.** "Hardware wallet, air-gapped, or secure enclave." How many social media users own a hardware wallet? < 1% of the general population. How many know what "air-gapped" means? Fewer. The secure enclave option is the most viable (biometric-protected key on the phone), but the documentation lists it as one of three options rather than the default.
+1. **Device key revocation.** If a phone is stolen, the user must: (a) retrieve their root key from cold storage, (b) publish a new Kind 10050 revoking the stolen device's subkey, (c) rotate their DM key (the stolen device had the DM key). This is a three-step process requiring cold storage access under stress (your phone was just stolen). Compare to Twitter: "reset my password."
 
-2. **DM key rotation every 90 days.** Who initiates the rotation? If the client does it automatically, how are in-flight DMs handled during the rotation window? If the user must do it manually, it will not happen. The documentation says "rotates every 90 days" but does not specify the rotation ceremony or the transition period.
-
-3. **Device key revocation.** If a phone is stolen, the user must: (a) retrieve their root key from cold storage, (b) publish a new Kind 10050 revoking the stolen device's subkey, (c) rotate their DM key (the stolen device had the DM key). This is a three-step process requiring cold storage access under stress (your phone was just stolen). Compare to Twitter: "reset my password."
-
-4. **Recovery contacts (Kind 10060-10061).** Social recovery is mentioned but not fully specified. The system overview lists these kinds as "what needs to be built." If root key loss is fatal (the whitepaper says "root loss is fatal"), then recovery is critical. A protocol where losing a key means permanent identity death will lose users at a rate that makes adoption impossible.
-
-5. **Governance key distribution.** "On trusted devices only -- signs kind 0 (profile), kind 3 (follows)." How does a user decide which devices are "trusted"? This is a security policy decision that most users are not equipped to make.
+2. **Governance key distribution.** "On trusted devices only -- signs kind 0 (profile), kind 3 (follows)." How does a user decide which devices are "trusted"? This is a security policy decision that most users are not equipped to make.
 
 **The NIP-07 escape hatch:**
 
@@ -307,21 +295,15 @@ The browser extension acting as a NIP-07 signer is actually a reasonable key man
 ### Gap classification
 
 - Key hierarchy design: Sound cryptographic design
-- Key management UX: **Fundamental** gap between the security model and user capability
-- Root key loss: **Critical** if no recovery mechanism is implemented
-- DM key rotation: **Engineering** (solvable with automatic client-side rotation)
+- Key management UX: **Engineering** gap narrowed by key-management-ux.md (secure enclave default, automatic DM rotation, social recovery as pre-launch requirement), but production implementation remains
 
-**Severity: Critical.** The key hierarchy is designed for a world where users have hardware wallets and understand cold storage. The actual user base of a social media app does not. This is the gap that has killed adoption of PGP, OMEMO, and every other end-user cryptographic system that required manual key management.
+**Severity: Significant.** The key-management-ux.md design doc addresses the major UX gaps (secure enclave as default, automatic DM key rotation, social recovery). Production implementation of device key revocation flows and governance key distribution remains to be validated with real users.
 
 ### Suggested fix
 
-1. **Make secure enclave the default for root key storage**, not hardware wallet. Modern phones and laptops have secure enclaves (Secure Enclave on Apple, StrongBox on Android, TPM on Windows/Linux). The root key should live there by default, protected by biometric. Hardware wallet should be the advanced option, not the default path.
+1. **Validate device revocation UX with real users.** The three-step revocation process (retrieve root key, publish revocation, rotate DM key) needs user testing to verify it is achievable under stress.
 
-2. **Automate DM key rotation entirely.** The client should rotate the DM key, publish the new key in Kind 10050, and handle the transition window (decrypt with both old and new keys for a period) without any user interaction.
-
-3. **Implement social recovery before launch.** Kind 10060-10061 should not be deferred. A user who loses their root key and has no recovery path will quit the protocol permanently.
-
-4. **Provide a "simple mode" key hierarchy.** For users who do not want cold storage: root key in secure enclave, all derived keys managed automatically, device delegation transparent. The full hierarchy is available for power users. The default should be "install the app, it works."
+2. **Define governance key trust levels.** Provide clear guidance or defaults for which devices receive governance key access, rather than leaving "trusted device" as an undefined concept.
 
 ---
 
@@ -525,7 +507,7 @@ The documentation is unusually thorough. The whitepaper, 10+ ADRs, plausibility 
 
 | Issue | Severity | Type | Blocking? |
 |-------|----------|------|-----------|
-| Key management UX is too complex for mainstream users | Critical | UX gap | Blocks mainstream adoption (power users can cope) |
+| Key management UX (device revocation, governance key trust) | Significant | UX gap | Design doc addresses major items; production validation needed |
 | GDPR has no deletion mechanism | Critical | Legal/regulatory | Blocks EU distribution |
 | Full-node ratio sustainability at 5% target | Significant | Architectural assumption | Degrades gracefully but threatens value proposition |
 | Implementation requires 26-39 person-months for MVP | Significant | Resource constraint | Not a blocker but sets realistic timeline |
@@ -542,13 +524,11 @@ Gozzip is a well-designed protocol that has done more analytical homework than m
 
 The protocol can be built. The math works. The engineering challenges are solvable.
 
-But the path from "analytically validated protocol" to "production system with real users" is where most decentralized protocols die. The three critical risks are:
+But the path from "analytically validated protocol" to "production system with real users" is where most decentralized protocols die. The two critical risks are:
 
-1. **Key management complexity.** The security model is excellent. The UX implications are adoption-killing. "Secure by default, advanced options for power users" must be the design principle, not "here are five types of keys."
+1. **GDPR compliance.** This is not optional for any protocol that wants global reach. A deletion mechanism must exist before launch, even if it is imperfect.
 
-2. **GDPR compliance.** This is not optional for any protocol that wants global reach. A deletion mechanism must exist before launch, even if it is imperfect.
-
-3. **The full-node ratio.** With the revised 5% design target, the assumption is more realistic, but the protocol still needs a plan for a world where the vast majority of users are on phones.
+2. **The full-node ratio.** With the revised 5% design target, the assumption is more realistic, but the protocol still needs a plan for a world where the vast majority of users are on phones.
 
 None of these are reasons to abandon the project. They are reasons to prioritize specific engineering work before scaling beyond early adopters. The protocol's phased adoption model buys time -- Bootstrap and Hybrid phases work with relays, giving the team runway to solve the hard problems before Sovereign phase matters at scale.
 
@@ -556,9 +536,8 @@ None of these are reasons to abandon the project. They are reasons to prioritize
 
 1. Write a formal protocol specification with test vectors.
 2. Implement deletion requests as a core protocol event kind.
-3. Make secure enclave the default key storage, with automatic DM key rotation.
-4. Run a 200-user closed beta for 90 days to measure actual full-node ratios and pact formation rates.
-5. Build protocol-level observability into the first client, not as an afterthought.
-6. Recruit a second protocol-level contributor to reduce bus factor.
+3. Run a 200-user closed beta for 90 days to measure actual full-node ratios and pact formation rates.
+4. Build protocol-level observability into the first client, not as an afterthought.
+5. Recruit a second protocol-level contributor to reduce bus factor.
 
 The protocol is ready for implementation. It is not ready for production deployment. The gap between those two states is where the real work happens.
