@@ -833,15 +833,21 @@ Worst case: 1 popular user is the first follow for 1,000 new users.
 
 **Bottleneck identified:** A highly popular early adopter could accumulate many bootstrap pacts. **Mitigation:** "The followed user's client auto-accepts if capacity allows" — they can refuse if overloaded. New users should follow 3-5 people to distribute bootstrap load.
 
-### Cold Start Chicken-and-Egg
+### Cold Start and Bootstrap Economics
 
-The protocol works identically to standard Nostr during bootstrap phase. No chicken-and-egg problem:
-- Day 1: Users use relays (existing Nostr infrastructure)
-- Weeks 1-4: Users form first pacts with people they interact with
-- Months 1-3: WoT grows, pact count increases, gossip becomes useful
-- Months 3-6: Sovereign users begin relying primarily on peers
+The protocol is functional during bootstrap — it works identically to standard Nostr — but this conflates "functional" with "compelling." The chicken-and-egg problem is not about whether the protocol works at launch (it does), but about why anyone would adopt when the product is strictly a heavier Nostr client with zero additional benefit until pacts mature:
 
-**Verdict: Bootstrap is viable.** The three-phase adoption model provides a smooth on-ramp from pure relay to fully sovereign operation.
+- **Day 1:** Users use relays. The Gozzip client adds background pact negotiation, challenge-response, and WoT computation — all invisible to the user but consuming bandwidth and battery. Zero incremental value over a standard Nostr client.
+- **Weeks 1-4:** Users form first pacts. Storage redundancy begins but is not yet reliable. The user experience is identical to Nostr.
+- **Months 1-3:** WoT grows, pact counts increase, gossip becomes useful for some reads. First measurable benefit: relay failure no longer means data loss.
+- **Months 3-6:** Sovereign users begin relying primarily on peers. The protocol's value proposition materializes.
+
+**The honest assessment:** The protocol survives bootstrap if the first client is an excellent Nostr client where sovereignty accrues as a background benefit. It fails during bootstrap if users are asked to adopt for sovereignty alone. Day-one value features (multi-device identity, encrypted DMs, social recovery) are the adoption hook — not pacts.
+
+**Bootstrap risks not modeled above:**
+- Guardian supply is zero at launch (no Sovereign-phase users exist yet). Genesis Guardian infrastructure is required.
+- The first ~3 months offer no measurable advantage over relay-only Nostr.
+- If the first Gozzip client is mediocre as a Nostr client, users will leave before pacts provide value.
 
 ---
 
@@ -895,7 +901,44 @@ The protocol works identically to standard Nostr during bootstrap phase. No chic
 
 ---
 
-## 12. Summary Table
+## 12. Negative Feedback and Contraction Risk
+
+The preceding analysis models positive feedback (growth spiral: more users → more pacts → better availability → more users). The reverse — contraction — is equally important and has not been modeled.
+
+### The Contraction Spiral
+
+When users leave:
+1. Their pact partners lose pacts → availability decreases for remaining users
+2. Decreased availability → more relay fallback → reduced perceived value
+3. Reduced perceived value → more users leave
+4. Repeat
+
+### Tipping Point Analysis
+
+Game-theoretic analysis (Agent 03, adversarial review) identifies approximate thresholds:
+
+| Free-rider % | Effect on cooperative equilibrium |
+|--------------|----------------------------------|
+| <20% | Stable — cooperators have sufficient partners |
+| 20-30% | Stressed — pact formation slows, some users stuck in Hybrid phase |
+| 30-50% | Degrading — cooperative equilibrium begins collapsing |
+| 50-70% | Unreliable — measurable availability degradation |
+| >70% | Failed — network functionally relay-dependent |
+
+The critical threshold is approximately 30% — above this, the incentive to cooperate weakens faster than it strengthens.
+
+### What Is Not Modeled
+
+This analysis does not yet model:
+- **Time-to-recovery after churn:** If 30% of users leave over 3 months, how long does pact replacement take for remaining users?
+- **Cascade effects:** A user losing 6 of 20 pact partners simultaneously may trigger over-reaction (excessive pact requests flooding the network)
+- **Minimum viable return:** What network size must survive contraction for the protocol to still provide value? Below this size, the protocol degrades to relay-only with extra overhead.
+
+These scenarios should be validated in simulation before production deployment.
+
+---
+
+## 13. Summary Table
 
 Assuming 25% full nodes (always-on), 75% light nodes (30% uptime).
 
@@ -918,7 +961,7 @@ Assuming 25% full nodes (always-on), 75% light nodes (30% uptime).
 
 ---
 
-## 13. Critical Numbers to Watch
+## 14. Critical Numbers to Watch
 
 These parameters should be monitored as the network grows:
 
@@ -931,7 +974,7 @@ These parameters should be monitored as the network grows:
 
 ---
 
-## 14. Conclusion
+## 15. Conclusion
 
 The protocol's numbers are plausible and well within the capability of consumer hardware and typical internet connections. No single parameter creates an unworkable bottleneck.
 
@@ -1016,3 +1059,13 @@ To check what happens if assumptions change, re-run these key formulas:
 | 40 pacts default | PACTS_DEFAULT = 40 | F-03, F-09, F-14, F-16, F-18, F-25 | 2× storage, 2× availability, lower full-node load (F-18=160→not realistic, need more full nodes) |
 | 5% gossip fallback | GOSSIP_FALLBACK = 0.05 | F-27, F-28, F-31, F-32 | 2.5× gossip load per node (still ~0.4 req/s, fine) |
 | Celebrity with 100 pacts | PACTS_POPULAR = 100 | F-34, F-36, F-37 | Lower per-peer load, better viral handling |
+
+### What if clustering coefficient is 0.50 (high-modularity graph)?
+
+Real social networks often have clustering within communities of 0.5-0.7. With C=0.50:
+
+**Gossip reach [F-26]:** reach(3) = 20 × [20 × (1-0.50)]^2 = 20 × 100 = 2,000 nodes (vs. 4,500 at C=0.25)
+
+**Impact:** Gossip reach drops by ~55%. Per-node gossip load decreases (fewer nodes forwarding), but discovery effectiveness degrades in modular graphs. Content crossing community boundaries becomes less likely via gossip alone. Relay fallback (Tier 4) handles more cross-community reads.
+
+**Verdict:** The protocol functions but becomes more relay-dependent for inter-community content at high clustering. This is consistent with the design — relays are permanently needed for content discovery beyond the WoT.
