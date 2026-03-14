@@ -2,7 +2,6 @@
 
 **Date:** 2026-03-14
 **Status:** Draft
-**Addresses:** Agent 04 (Cold Start) Issues 1-2, Agent 03 (Game Theory) Issue 3, Synthesis Verdict §1.1
 
 ## Problem Statement
 

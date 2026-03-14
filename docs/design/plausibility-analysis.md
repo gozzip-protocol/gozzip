@@ -915,7 +915,7 @@ When users leave:
 
 ### Tipping Point Analysis
 
-Game-theoretic analysis (Agent 03, adversarial review) identifies approximate thresholds:
+Game-theoretic analysis identifies approximate thresholds:
 
 | Free-rider % | Effect on cooperative equilibrium |
 |--------------|----------------------------------|

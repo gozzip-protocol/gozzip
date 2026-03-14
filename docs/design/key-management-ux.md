@@ -2,7 +2,6 @@
 
 **Date:** 2026-03-14
 **Status:** Draft
-**Addresses:** Agent 07 (Mobile Constraints) §3, §7; Agent 10 (Practical Deployment) §6
 
 ## Problem Statement
 

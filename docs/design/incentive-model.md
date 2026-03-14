@@ -106,7 +106,7 @@ The incentive model has structural limitations that should be acknowledged:
 
 **The lurker gap.** Bilateral pacts require both parties to produce content. Read-only users (60-80% of typical social platforms) cannot participate in the pact economy. The incentive model covers the 10-20% who create content. The remaining users are permanent relay consumers. This is acceptable — lurkers have minimal data to protect — but it means the "data sovereignty for everyone" framing overstates the protocol's reach.
 
-**The 30% tipping point.** Game-theoretic analysis (see adversarial review, Agent 03) shows the cooperative equilibrium collapses when free-riding exceeds approximately 30%. At 50% free-riding, data availability degrades measurably. At 70%, the network is functionally unreliable. The reach gradient (more pacts → more forwarding) is the primary defense, but its magnitude may be insufficient for users who don't value wider reach.
+**The 30% tipping point.** Game-theoretic analysis shows the cooperative equilibrium collapses when free-riding exceeds approximately 30%. At 50% free-riding, data availability degrades measurably. At 70%, the network is functionally unreliable. The reach gradient (more pacts → more forwarding) is the primary defense, but its magnitude may be insufficient for users who don't value wider reach.
 
 **Volume matching creates activity-band segregation.** The +/-30% volume tolerance means power users (100+ events/day) can only pair with similar-volume users. Users at extremes of the activity distribution may struggle to find compatible partners within their 2-hop WoT.
 

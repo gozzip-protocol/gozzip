@@ -2,7 +2,6 @@
 
 **Date:** 2026-03-14
 **Status:** Draft
-**Addresses:** Agent 08 (Red Team) Attack 2, Agent 05 (Privacy) Issue 5, Synthesis Verdict §1.2
 
 ## Problem Statement
 

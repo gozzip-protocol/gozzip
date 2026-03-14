@@ -2,7 +2,6 @@
 
 **Date:** 2026-03-14
 **Status:** Draft
-**Addresses:** Agent 03 (Game Theory) Issue 3, Agent 04 (Cold Start) Issue 2, Agent 08 (Red Team) Attack 5
 
 ## Problem Statement
 
@@ -80,7 +79,7 @@ The pay-it-forward framing relies on prosocial behavior, not rational self-inter
 1. Increase `guardian_max` from 1 to 3 per Seedling
 2. Each Guardian still holds at most 1 active guardian pact (distributes load)
 3. Seedlings matched with multiple Guardians have redundancy against a malicious or unreliable single Guardian
-4. Reduces the impact of Agent 08's Guardian Abuse attack (malicious Guardian silently censoring Seedling)
+4. Reduces the impact of the Guardian Abuse attack scenario (malicious Guardian silently censoring Seedling)
 
 **Incentive analysis:**
 - Not an incentive mechanism per se — a safety improvement
