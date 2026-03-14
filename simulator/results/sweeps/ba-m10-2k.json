@@ -1,0 +1,67 @@
+━━ Formula Validation (2000 nodes, seed=42) ━━
+
+F-01  avg_event_size            expected=925.00         actual=925.00         ✔ (0.0%)
+F-24  online_fraction           expected=0.69           actual=0.69           ✔ (0.1%)
+F-03  pact_storage_per_user     expected=629742.08      actual=725285.46      ⚠ (15.2%)
+F-14  all_pacts_offline_prob    expected=0.00           actual=0.00           ✔ (0.0%)
+F-18  full_pact_fraction        expected=0.25           actual=0.25           ✔ (0.4%)
+F-31  gossip_rate_per_node      expected=0.00           actual=0.00           ✘ (270.8%)
+F-TTFP time_to_first_pact        expected=604860.00      actual=609600.00      ✔ (0.8%)
+
+Passed: 5  Warnings: 1  Failed: 1
+
+━━ Read Latency (seconds) ━━
+  p50=0.0000  p95=0.1973  p99=30.0000  min=0.0000  max=30.0000  mean=0.4991  (n=1031036)
+
+━━ Read Tier Breakdown ━━
+Total reads: 1031036
+  Instant:         946098 ( 91.8%)  p50=0ms
+  CachedEndpoint:     628 (  0.1%)  p50=61ms
+  Gossip:            1279 (  0.1%)  p50=161ms
+  Relay:            66329 (  6.4%)  p50=200ms
+  Failed:           16702 (  1.6%)
+  Success rate: 98.4%
+
+━━ Time-to-First-Pact (seconds) ━━
+  p50=609600  p95=609660  p99=609840  min=604800  max=610560  (n=2000)
+
+━━ Relay Dependency Decay (by reader pact age) ━━
+  Age           Reads  Instant   Cached   Gossip    Relay   Failed
+  0-1d          34481    85.9%     0.0%     0.0%    11.2%     2.9%
+  1-3d          68467    93.1%     0.0%     0.0%     5.5%     1.4%
+  3-7d         137316    98.2%     0.0%     0.0%     1.4%     0.4%
+  7-14d        240770    99.4%     0.0%     0.0%     0.5%     0.1%
+  14+d         307927    99.5%     0.0%     0.0%     0.4%     0.1%
+  (pre-pact)   242075    71.2%     0.3%     0.5%    22.4%     5.6%
+
+━━ Content Availability (by simulation period) ━━
+  Period        Reads   Avail%  Instant   Cached   Gossip    Relay   Failed
+  day 1-5      171853    93.6%    67.7%     0.0%     0.5%    25.4%     6.4%
+  day 5-10     171675    97.3%    86.2%     0.3%     0.3%    10.6%     2.7%
+  day 10-20    343734    99.8%    98.9%     0.0%     0.0%     0.9%     0.2%
+  day 20-30    343774    99.9%    99.5%     0.0%     0.0%     0.4%     0.1%
+  Overall:     1031036   98.4%
+
+━━ Read Tier by Feed Tier ━━
+  Feed Tier     Reads  Instant   Cached   Gossip    Relay   Failed
+  inner-circle   6305    95.4%     0.0%     0.0%     3.7%     0.9%
+  orbit        1024731    91.7%     0.1%     0.1%     6.5%     1.6%
+  horizon           0      ---      ---      ---      ---      ---
+
+━━ Scale Metrics ━━
+
+Delivery Latency Percentiles (seconds):
+  p50=0.0000  p95=0.0000  p99=0.0000
+
+Pact Churn:
+  formed=127389  dropped=167419  net=-40030  churn_rate=2.7903/node/day
+
+Gossip Efficiency:
+  received=10996512  sent=85021  ratio=129.3388
+
+Cache Hit Rate:
+  hits=989168  misses=9859364  rate=0.0912
+
+Simulation completed in 731.48s
+JSON report written to results/validate-2000-seed42.json
+HTML report written to results/validate-2000-seed42.html
