@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Gozzip presents a well-considered design that maps social trust onto storage infrastructure, inherits Nostr's battle-tested identity primitives, and layers on a key hierarchy, pact mechanism, and gossip routing scheme grounded in real network theory. The cryptographic primitives are generally chosen correctly (secp256k1, HKDF-SHA256, NIP-44 AEAD, SHA-256 Merkle trees), and the network-theoretic arguments are cited accurately. However, a close reading reveals several issues: the HKDF derivation scheme creates deterministic linkage between root, governance, and DM keys that undermines the compartmentalization goal; the epidemic threshold argument conflates WoT-filtered forwarding with a formal spectral radius bound without proving the claim; the proof-of-storage mechanism is acknowledged as weak but the 500ms latency heuristic is weaker than acknowledged; the social recovery scheme has a subtle race condition during the timelock window; and the gossip reach calculation uses a mean-field approximation that substantially overestimates real-world reachable node counts in clustered networks. These are fixable issues in a fundamentally sound architecture.
+Gozzip presents a well-considered design that maps social trust onto storage infrastructure, inherits Nostr's battle-tested identity primitives, and layers on a key hierarchy, pact mechanism, and gossip routing scheme grounded in real network theory. The cryptographic primitives are generally chosen correctly (secp256k1, HKDF-SHA256, NIP-44 AEAD, SHA-256 Merkle trees), and the network-theoretic arguments are cited accurately. However, a close reading reveals several issues: the HKDF derivation scheme creates deterministic linkage between root, governance, and DM keys that undermines the compartmentalization goal; the epidemic threshold argument conflates WoT-filtered forwarding with a formal spectral radius bound without proving the claim; the proof-of-storage mechanism is acknowledged as weak but the 500ms latency heuristic is weaker than acknowledged; and the social recovery scheme has a subtle race condition during the timelock window. These are fixable issues in a fundamentally sound architecture.
 
 ---
 
@@ -106,29 +106,7 @@ Additionally, the 7-day timelock is a fixed parameter. For a user who is traveli
 
 ---
 
-### 5. Gossip Reach Calculation Substantially Overestimates Unique Nodes
-
-**Severity:** Significant
-
-**Description:**
-
-The gossip reach formula `reach(h) = k * [k(1-C)]^{h-1}` gives reach(3) = 4,500 for k=20, C=0.25 in a 5,000-node network. The whitepaper acknowledges this is a "mean-field approximation" and notes that "at realistic online rates (~46%), the unique online reach is approximately 400-500 nodes."
-
-However, even the offline reach figure of 4,500 is likely an overestimate for clustered networks. The formula assumes that the overlap between neighborhoods is exactly captured by the clustering coefficient C, but in networks with strong community structure (which the paper explicitly invokes via Girvan-Newman), neighborhood overlap is much higher within communities. A more accurate model would account for the fact that 2-hop neighbors in a clustered network share many 1-hop neighbors, so the set of *unique* 2-hop nodes is substantially smaller than k * k * (1-C).
-
-For example, in the simulation's BA graph with ba=50 edges, the actual unique 3-hop reach from a typical node (not a hub) may be closer to 2,000-3,000, not 4,500. This affects the claimed 90%+ coverage rate, which in turn affects whether TTL=3 is sufficient or whether some nodes are systematically unreachable via gossip alone.
-
-The paper compensates by noting that relay fallback handles 5-10% of reads, but if the real gossip miss rate is 20-40% for non-hub nodes in modular networks, relay fallback becomes a primary path, not a safety net. This undermines the "relay demotion" narrative.
-
-**Recommendation:**
-
-1. Report the actual unique reach from the simulation (the code exists and presumably computes this). Mean-field approximations are useful for intuition but should be validated against simulation data for a design document.
-2. If the real 3-hop unique reach is substantially lower than 4,500, either increase TTL to 4 for data requests (kind 10057) while keeping TTL=3 for pact requests (kind 10055), or adjust the relay fallback threshold accordingly.
-3. Consider reporting reach separately for hub nodes (high degree) and peripheral nodes (low degree), since the mean-field approximation breaks down differently for each.
-
----
-
-### 6. Device Delegation QR Code Onboarding Creates a TOCTOU Window
+### 5. Device Delegation QR Code Onboarding Creates a TOCTOU Window
 
 **Severity:** Significant
 
@@ -154,7 +132,7 @@ The document does not resolve which of these applies.
 
 ---
 
-### 7. Rotating Request Token Provides No Meaningful Privacy
+### 6. Rotating Request Token Provides No Meaningful Privacy
 
 **Severity:** Minor
 
@@ -175,7 +153,7 @@ The protocol would be better served by either:
 
 ---
 
-### 8. Volume Balancing Tolerance Creates Exploitation Window
+### 7. Volume Balancing Tolerance Creates Exploitation Window
 
 **Severity:** Minor
 
@@ -193,7 +171,7 @@ This is a minor design trade-off, not a bug. The 30% tolerance is reasonable for
 
 ---
 
-### 9. Checkpoint Merkle Tree Duplication Is Non-Standard and Unnecessary
+### 8. Checkpoint Merkle Tree Duplication Is Non-Standard and Unnecessary
 
 **Severity:** Nitpick
 
@@ -209,7 +187,7 @@ Consider adopting the RFC 6962 Merkle tree construction, which handles arbitrary
 
 ---
 
-### 10. NIP-46 Channel Metadata Leakage Is Underestimated
+### 9. NIP-46 Channel Metadata Leakage Is Underestimated
 
 **Severity:** Minor
 
@@ -227,7 +205,7 @@ Over 30 days, a relay that handles even one pact pair's NIP-46 traffic will obse
 
 ---
 
-### 11. Pact State Machine Missing Explicit Handling of Simultaneous Transitions
+### 10. Pact State Machine Missing Explicit Handling of Simultaneous Transitions
 
 **Severity:** Minor
 
@@ -246,23 +224,6 @@ Add a "Transition Priority" section specifying that: (1) partition detection sus
 
 ---
 
-### 12. Scale-Free Topology Claim Is Appropriately Hedged But Simulation Uses Strict BA Model
-
-**Severity:** Minor
-
-**Description:**
-
-The whitepaper appropriately cites Broido and Clauset (2019) noting that real social networks may not follow strict power-law distributions, and frames the BA model as "a useful approximation -- not an exact match." This is good scientific practice.
-
-However, the simulation (referenced throughout the paper) exclusively uses BA preferential attachment, which produces a strict power-law degree distribution. Real social networks often have degree distributions closer to log-normal or truncated power-law, with far fewer extreme hubs than the BA model predicts. The protocol's resilience claims (particularly around hub-targeted attacks and the importance of WoT-gated pact formation) may be overfit to the BA model's unrealistically prominent hubs.
-
-**Recommendation:**
-
-1. Run the simulation with alternative graph models (e.g., log-normal degree distribution, configuration model with empirical degree sequence from a real social network dataset) and report whether the key metrics (gossip reach, pact formation equilibrium, availability under churn) differ materially.
-2. If the results are robust across models, state this explicitly. If they differ, discuss which model is most appropriate for the target deployment context.
-
----
-
 ## Summary Table
 
 | # | Issue | Severity | One-line summary |
@@ -271,14 +232,12 @@ However, the simulation (referenced throughout the paper) exclusively uses BA pr
 | 2 | Epidemic threshold argument circularity | Significant | WoT spectral radius claim is stated but not proven; TTL=3 is the real mechanism |
 | 3 | Proof-of-storage lazy replication | Significant | Hash challenges with multi-hour windows are trivially proxied by lazy peers |
 | 4 | Social recovery timelock race condition | Significant | No mandatory notification of recovery attempts; clock skew at timelock boundary undefined |
-| 5 | Gossip reach overestimation | Significant | Mean-field formula overestimates unique 3-hop reach in clustered/modular networks |
-| 6 | Device delegation TOCTOU window | Significant | Temporary delegation UX proposal contradicts protocol spec; verifiability gap during 7-day window |
-| 7 | Rotating request token privacy framing | Minor | Token is trivially reversible; "pseudonymous lookup" sets incorrect expectations |
-| 8 | Volume balancing exploitation | Minor | 30% tolerance allows persistent mild asymmetry; within acceptable bounds |
-| 9 | Merkle tree padding approach | Nitpick | Non-standard padding; RFC 6962 construction is cleaner |
-| 10 | NIP-46 challenge-response metadata | Minor | Relay pact identification is near-certain, not probabilistic; pattern is highly distinctive |
-| 11 | State machine simultaneous transitions | Minor | No priority ordering for concurrent transition triggers |
-| 12 | Simulation graph model monoculture | Minor | Only BA model tested; real social networks may differ materially |
+| 5 | Device delegation TOCTOU window | Significant | Temporary delegation UX proposal contradicts protocol spec; verifiability gap during 7-day window |
+| 6 | Rotating request token privacy framing | Minor | Token is trivially reversible; "pseudonymous lookup" sets incorrect expectations |
+| 7 | Volume balancing exploitation | Minor | 30% tolerance allows persistent mild asymmetry; within acceptable bounds |
+| 8 | Merkle tree padding approach | Nitpick | Non-standard padding; RFC 6962 construction is cleaner |
+| 9 | NIP-46 challenge-response metadata | Minor | Relay pact identification is near-certain, not probabilistic; pattern is highly distinctive |
+| 10 | State machine simultaneous transitions | Minor | No priority ordering for concurrent transition triggers |
 
 ---
 
@@ -286,4 +245,4 @@ However, the simulation (referenced throughout the paper) exclusively uses BA pr
 
 Gozzip is a serious protocol design that demonstrates genuine engagement with the relevant network science, cryptographic, and systems literature. The key hierarchy is well-structured with appropriate compartmentalization (upward only, which is the correct direction). The pact mechanism is cleverly designed with the equilibrium-seeking formation model being a particular strength -- it avoids the trap of prescribing fixed parameters and instead lets the pact count emerge from measurable conditions. The surveillance surface analysis is unusually honest for a protocol whitepaper, openly documenting privacy non-goals and limitations rather than overstating protections.
 
-The critical issue (HKDF-derived DM keys defeating forward secrecy on root compromise) is architecturally significant but fixable with a key derivation redesign. The significant issues cluster around two themes: (1) the gap between theoretical network-science claims and their practical instantiation (epidemic threshold, gossip reach), and (2) the proof-of-storage mechanism's weakness against strategic lazy replication. Both are addressable through the recommended changes without altering the protocol's core architecture. The minor issues are genuine but do not threaten the protocol's viability. Overall, this is a strong design that would benefit from tightening its formal claims to match what it actually delivers, and from strengthening its proof-of-storage against rational adversaries.
+The critical issue (HKDF-derived DM keys defeating forward secrecy on root compromise) is architecturally significant but fixable with a key derivation redesign. The significant issues cluster around two themes: (1) the epidemic threshold argument's circular reasoning (WoT spectral radius claim is stated but not proven), and (2) the proof-of-storage mechanism's weakness against strategic lazy replication. Both are addressable through the recommended changes without altering the protocol's core architecture. The minor issues are genuine but do not threaten the protocol's viability. Overall, this is a strong design that would benefit from tightening its formal claims to match what it actually delivers, and from strengthening its proof-of-storage against rational adversaries.

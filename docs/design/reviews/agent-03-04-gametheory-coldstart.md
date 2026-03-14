@@ -2,55 +2,20 @@
 
 **Reviewer:** Agent 03-04 (Game Theory + Cold Start)
 **Date:** 2026-03-14
-**Scope:** Nash equilibria of bilateral pacts, free-rider dynamics, guardian incentives, genesis bootstrap viability, cold start path from 0 to 3,000 users, network effect barriers, lurker problem
+**Scope:** Nash equilibria of bilateral pacts, free-rider dynamics, guardian incentives, genesis bootstrap viability, cold start path from 0 to 3,000 users, network effect barriers
 **Documents reviewed:** Whitepaper v1.2, incentive-model.md, guardian-incentives.md, genesis-bootstrap.md, plausibility-analysis.md, equilibrium-pact-formation.md
 
 ---
 
 ## 1. Executive Summary
 
-The Gozzip protocol's incentive architecture is thoughtfully constructed and unusually self-aware for a project at this stage -- the design documents flag many of the weaknesses that an adversarial reviewer would raise, which is commendable. However, the protocol has a structural vulnerability at its core: the incentive to participate in bilateral storage pacts is tightly coupled to content creation, which excludes 60-80% of typical social platform users from the cooperative economy by design. The remaining cooperative economy rests on a "reach gradient" incentive whose magnitude is unquantified and may be too weak to sustain cooperation above 30% defection. The genesis bootstrap plan is financially modest and operationally sound, but the path from Genesis Guardian scaffolding to organic guardian supply depends on a phase transition (prosocial behavior emerging at scale) for which no empirical evidence is offered. The protocol has viable answers for many hard problems, but the gap between analytical plausibility and production viability remains wide on the game-theoretic foundations.
+The Gozzip protocol's incentive architecture is thoughtfully constructed and unusually self-aware for a project at this stage -- the design documents flag many of the weaknesses that an adversarial reviewer would raise, which is commendable. However, the protocol has structural vulnerabilities in its game-theoretic foundations: the guardian incentive mechanisms are likely too weak to produce organic guardian supply, volume matching creates activity-band segregation with thin matching pools, and the cooperative equilibrium is fragile against strategic partial defection. The genesis bootstrap plan is financially modest and operationally sound, but the path from Genesis Guardian scaffolding to organic guardian supply depends on a phase transition (prosocial behavior emerging at scale) for which no empirical evidence is offered. The protocol has viable answers for many hard problems, but the gap between analytical plausibility and production viability remains wide on the game-theoretic foundations.
 
 ---
 
 ## 2. Issues
 
-### 2.1 The Reach Gradient Is Unquantified and Possibly Insufficient
-
-**Severity: Critical**
-
-The entire cooperative equilibrium rests on a single incentive: more pacts lead to more forwarding advocates, which leads to wider content reach. This is the primary mechanism preventing the cooperative equilibrium from collapsing. But nowhere in the design documents is the magnitude of this gradient quantified.
-
-Specific gaps:
-- How much additional reach does a user with 20 pacts get versus a user with 5 pacts? Is it 10% more impressions? 50%? 2x? Without a number, the incentive is unfalsifiable.
-- The plausibility analysis (Section 3, F-26) shows realistic gossip reach of ~400 online nodes. If a user's 20 pact partners forward eagerly versus 5 partners, the difference in unique reach may be marginal because most of the reach comes from 2-hop and 3-hop propagation, not from the direct forwarding tier.
-- The forwarding priority system has four tiers (active pact > 1-hop WoT > 2-hop WoT > unknown). A user who defects on pacts still benefits from WoT forwarding (tier 2), which may be "good enough" for most users. The marginal value of pact-tier forwarding over WoT-tier forwarding is the actual incentive, and it is undefined.
-
-The incentive model document states that defection above 30% causes collapse, but this threshold appears to be asserted rather than derived. What model produces the 30% figure? If it comes from the pact formation supply analysis (fewer cooperators means fewer available pact partners), then the threshold depends on network density and WoT structure, not on a fixed percentage.
-
-**Recommendation:** Run the simulator to measure the reach differential between a cooperating node and a defecting node at various cooperation rates (90%, 70%, 50%, 30%). Quantify the reach gradient in units that matter (additional impressions per post, probability of being surfaced by discovery relays). If the gradient is less than 20% additional reach, the incentive is likely too weak to sustain cooperation, and a supplementary mechanism is needed.
-
----
-
-### 2.2 The Lurker Problem Is Acknowledged But Not Resolved
-
-**Severity: Critical**
-
-The design documents honestly acknowledge that 60-80% of social platform users are lurkers who produce no content, have no use for bilateral pacts, and derive zero value from the reach gradient. The incentive-model.md states: "Rational behavior for lurkers is to form zero pacts -- defection is the dominant strategy." This is correct game-theoretically.
-
-The problem is deeper than the documents acknowledge:
-
-1. **Lurkers are not neutral participants; they are the audience.** Content creators produce content because someone reads it. If 70% of users are relay-dependent consumers with no pact participation, then the "audience" for the reach gradient is largely outside the pact economy. A content creator's reach is determined more by relay distribution than by pact-partner forwarding, because the majority of their readers discover content through relays, not gossip.
-
-2. **The pact economy is a minority economy.** If 20% of users actively create content and participate in pacts, and 80% are relay consumers, then the cooperative equilibrium is operating over a much smaller population than the headline user count suggests. A "100,000 user network" is really a "20,000 participant pact economy" with 80,000 relay-dependent consumers. The plausibility analysis should use this effective population for pact formation modeling.
-
-3. **"Consumer mode" normalizes defection.** The proposal for a first-class "consumer mode" client experience is pragmatic, but it also signals that not participating in the pact economy is an accepted, designed-for behavior. This removes any social pressure to contribute and ensures the lurker fraction stays high permanently.
-
-**Recommendation:** Model the pact economy using the effective participant population (content creators only), not total users. If 20% of 100K users participate in pacts, that is 20K pact participants seeking 20 pacts each within their WoT -- verify that WoT density supports this with volume-matched partners. Consider whether lurkers can contribute to the economy without producing content (e.g., as read-cache nodes, gossip forwarders, or challenge-response responders in exchange for reduced relay dependency).
-
----
-
-### 2.3 Guardian Pacts: The Persistent WoT Edge Incentive Is Weak
+### 2.1 Guardian Pacts: The Persistent WoT Edge Incentive Is Weak
 
 **Severity: Significant**
 
@@ -68,7 +33,7 @@ If P(Seedling reaches Hybrid) is 30% (optimistic for early-stage social platform
 
 ---
 
-### 2.4 The Genesis-to-Organic Guardian Transition Has No Credible Mechanism
+### 2.2 The Genesis-to-Organic Guardian Transition Has No Credible Mechanism
 
 **Severity: Significant**
 
@@ -82,7 +47,7 @@ The problem is that these conditions are mutually dependent:
 - Sovereign-phase users emerge only after the network has been running long enough
 - The network runs long enough only if Seedlings successfully onboard (which requires Guardians)
 
-The Genesis nodes break this cycle temporarily, but the document's sunset condition -- "organic guardian supply/demand ratio > 1.5 for 30 consecutive days" -- requires a phase transition where altruistic behavior emerges at scale. The guardian incentive mechanisms (WoT edge, reputation visibility) are weak motivators (see issue 2.3 above). No comparable decentralized system has achieved sustained volunteer infrastructure at this scale without economic incentives.
+The Genesis nodes break this cycle temporarily, but the document's sunset condition -- "organic guardian supply/demand ratio > 1.5 for 30 consecutive days" -- requires a phase transition where altruistic behavior emerges at scale. The guardian incentive mechanisms (WoT edge, reputation visibility) are weak motivators (see issue 2.1 above). No comparable decentralized system has achieved sustained volunteer infrastructure at this scale without economic incentives.
 
 The bootstrap document does acknowledge the failure case: "If after 12 months the sovereignty ratio is below 5% and organic guardian supply is near zero, then the bootstrap strategy has failed." This honesty is appreciated, but the failure response ("extend Genesis operation, re-evaluate incentive model") is essentially "keep running centralized infrastructure and hope."
 
@@ -90,7 +55,7 @@ The bootstrap document does acknowledge the failure case: "If after 12 months th
 
 ---
 
-### 2.5 Volume Matching Creates Activity-Band Segregation
+### 2.3 Volume Matching Creates Activity-Band Segregation
 
 **Severity: Significant**
 
@@ -109,7 +74,7 @@ The bootstrap parameter relaxation (volume tolerance +/-100% during bootstrap) a
 
 ---
 
-### 2.6 The 30% Defection Tipping Point Is Fragile Against Strategic Defection
+### 2.4 The 30% Defection Tipping Point Is Fragile Against Strategic Defection
 
 **Severity: Significant**
 
@@ -130,7 +95,7 @@ This creates a "partial defection" equilibrium that is individually rational and
 
 ---
 
-### 2.7 PACT_FLOOR Creates Deadweight Obligation for Keepers
+### 2.5 PACT_FLOOR Creates Deadweight Obligation for Keepers
 
 **Severity: Significant**
 
@@ -144,7 +109,7 @@ The equilibrium-pact-formation.md document addresses this indirectly: the functi
 
 ---
 
-### 2.8 Bootstrap Path from 0 to 3,000 Users Depends on Unproven Client Quality
+### 2.6 Bootstrap Path from 0 to 3,000 Users Depends on Unproven Client Quality
 
 **Severity: Significant**
 
@@ -160,7 +125,7 @@ The honest implication: the protocol's bootstrap is not bootstrappable by the pr
 
 ---
 
-### 2.9 Cooperative Equilibrium Has Two Stable States -- and Only One Is Good
+### 2.7 Cooperative Equilibrium Has Two Stable States -- and Only One Is Good
 
 **Severity: Significant**
 
@@ -177,7 +142,7 @@ The contraction risk analysis in the plausibility document (Section 12) acknowle
 
 ---
 
-### 2.10 The "One Guardian Per User" Limit Fragments the Guardian Supply
+### 2.8 The "One Guardian Per User" Limit Fragments the Guardian Supply
 
 **Severity: Minor**
 
@@ -189,7 +154,7 @@ At a storage cost of ~100-700 KB/month per Seedling, there is no technical reaso
 
 ---
 
-### 2.11 Bootstrap Parameter Relaxation Creates a Normalization Cliff
+### 2.9 Bootstrap Parameter Relaxation Creates a Normalization Cliff
 
 **Severity: Minor**
 
@@ -201,7 +166,7 @@ This creates discrete cliffs where pacts formed under relaxed parameters become 
 
 ---
 
-### 2.12 Correlated Failure at rho=0.20 Makes the Pact Count Intractable
+### 2.10 Correlated Failure at rho=0.20 Makes the Pact Count Intractable
 
 **Severity: Minor**
 
@@ -219,29 +184,25 @@ The document states that "geographic diversity and uptime complementarity reduce
 
 | # | Issue | Severity | Category |
 |---|-------|----------|----------|
-| 2.1 | Reach gradient is unquantified and may be insufficient to sustain cooperation | Critical | Game Theory |
-| 2.2 | Lurker problem excludes 60-80% of users from the cooperative economy | Critical | Game Theory |
-| 2.3 | Guardian WoT edge incentive is too weak (cost is immediate, benefit is deferred and probabilistic) | Significant | Incentives |
-| 2.4 | Genesis-to-organic guardian transition has no credible forcing mechanism | Significant | Cold Start |
-| 2.5 | Volume matching creates activity-band segregation with thin matching pools | Significant | Game Theory |
-| 2.6 | Strategic partial defection undermines the 30% tipping point | Significant | Game Theory |
-| 2.7 | PACT_FLOOR creates gameable deadweight obligation for Keepers | Significant | Incentives |
-| 2.8 | Bootstrap depends on unproven client quality, not protocol properties | Significant | Cold Start |
-| 2.9 | Cooperative equilibrium collapse is irreversible -- no recovery mechanism exists | Significant | Game Theory |
-| 2.10 | One-Guardian-per-user limit artificially constrains guardian supply | Minor | Incentives |
-| 2.11 | Discrete parameter normalization at network thresholds creates renegotiation storms | Minor | Cold Start |
-| 2.12 | Correlated failures in community-first bootstrap contradict diversity requirements | Minor | Cold Start |
+| 2.1 | Guardian WoT edge incentive is too weak (cost is immediate, benefit is deferred and probabilistic) | Significant | Incentives |
+| 2.2 | Genesis-to-organic guardian transition has no credible forcing mechanism | Significant | Cold Start |
+| 2.3 | Volume matching creates activity-band segregation with thin matching pools | Significant | Game Theory |
+| 2.4 | Strategic partial defection undermines the 30% tipping point | Significant | Game Theory |
+| 2.5 | PACT_FLOOR creates gameable deadweight obligation for Keepers | Significant | Incentives |
+| 2.6 | Bootstrap depends on unproven client quality, not protocol properties | Significant | Cold Start |
+| 2.7 | Cooperative equilibrium collapse is irreversible -- no recovery mechanism exists | Significant | Game Theory |
+| 2.8 | One-Guardian-per-user limit artificially constrains guardian supply | Minor | Incentives |
+| 2.9 | Discrete parameter normalization at network thresholds creates renegotiation storms | Minor | Cold Start |
+| 2.10 | Correlated failures in community-first bootstrap contradict diversity requirements | Minor | Cold Start |
 
 ---
 
 ## 4. Overall Assessment
 
-**Verdict: Conditionally viable, with two critical gaps that need quantitative resolution before production deployment.**
+**Verdict: Conditionally viable, with several significant gaps that need resolution before production deployment.**
 
-The protocol demonstrates unusual intellectual honesty. The design documents preemptively flag most of the weaknesses an adversary would find -- the lurker gap, the guardian Nash equilibrium problem, the cooperative equilibrium fragility, the bootstrap dependency on client quality. This self-awareness is a strength, but acknowledging a problem is not the same as solving it.
-
-The two critical issues (2.1 and 2.2) are related: the reach gradient is the only incentive sustaining cooperation, but its magnitude is unknown, and it operates over a minority of users (content creators) while the majority (lurkers) are permanent free riders by design. If the reach gradient turns out to be strong (>50% reach increase for cooperators vs. defectors), the protocol is viable for its target population. If it is weak (<20% increase), the cooperative equilibrium will not survive contact with real users.
+The protocol demonstrates unusual intellectual honesty. The design documents preemptively flag most of the weaknesses an adversary would find -- the guardian Nash equilibrium problem, the cooperative equilibrium fragility, the bootstrap dependency on client quality. This self-awareness is a strength, but acknowledging a problem is not the same as solving it.
 
 The genesis bootstrap plan is pragmatic and cost-effective ($3K-7K for 12 months of centralized scaffolding). The financial barrier to attempting bootstrap is low. The risk is not cost but transition: the plan has no credible mechanism for transitioning from centralized Genesis guardians to organic guardian supply. The most likely outcome is that Genesis nodes become permanent infrastructure -- which is acceptable operationally but should be planned for rather than treated as a failure case.
 
-The game-theoretic foundations are sound in structure but undertested in magnitude. The protocol should invest in simulation of the reach gradient, strategic defection scenarios, and recovery from cooperative equilibrium collapse before claiming the incentive model is sufficient. The honest path forward is: build the client, launch with Genesis infrastructure, measure the actual reach gradient and cooperation rates, and adjust the incentive mechanisms based on empirical data rather than analytical assumptions.
+The game-theoretic foundations are sound in structure but undertested in magnitude. The protocol should invest in simulation of strategic defection scenarios, and recovery from cooperative equilibrium collapse before claiming the incentive model is sufficient. The honest path forward is: build the client, launch with Genesis infrastructure, measure actual cooperation rates, and adjust the incentive mechanisms based on empirical data rather than analytical assumptions.

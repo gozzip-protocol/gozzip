@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-Gozzip makes an honest effort to delineate what it hides and what it leaks, and the existing surveillance-surface document is unusually candid for a protocol in this space. However, several gaps remain between the claimed privacy properties and what the protocol actually delivers. The pseudonymous request token (H(pubkey||date)) provides negligible privacy against any relay that maintains a pubkey directory -- which is every relay. NIP-59 DM metadata leakage fully exposes the communication graph to relay operators. BLE physical-layer fingerprinting undermines the cryptographic unlinkability that ephemeral subkeys are supposed to provide. On the scalability side, the gossip reach formula breaks down at realistic clustering coefficients, media pacts introduce order-of-magnitude storage asymmetries that the volume-matching tolerance cannot absorb, and the GDPR deletion mechanism has structural gaps for BLE-replicated and re-ingested content. The relay cartel threat is acknowledged but insufficiently mitigated: 3-5 popular relays can reconstruct near-complete social graphs, pact topologies, and DM communication graphs with no protocol-level countermeasure beyond "use more relays."
+Gozzip makes an honest effort to delineate what it hides and what it leaks, and the existing surveillance-surface document is unusually candid for a protocol in this space. However, several gaps remain between the claimed privacy properties and what the protocol actually delivers. The pseudonymous request token (H(pubkey||date)) provides negligible privacy against any relay that maintains a pubkey directory -- which is every relay. NIP-59 DM metadata leakage fully exposes the communication graph to relay operators. BLE physical-layer fingerprinting undermines the cryptographic unlinkability that ephemeral subkeys are supposed to provide. On the scalability side, media pacts introduce order-of-magnitude storage asymmetries that the volume-matching tolerance cannot absorb, and the GDPR deletion mechanism has structural gaps for BLE-replicated and re-ingested content. The relay cartel threat is acknowledged but insufficiently mitigated: 3-5 popular relays can reconstruct near-complete social graphs, pact topologies, and DM communication graphs with no protocol-level countermeasure beyond "use more relays."
 
 ---
 
@@ -93,39 +93,7 @@ This is an inherent property of Nostr-compatible signed events and cannot be cha
 
 ---
 
-### S-01: Gossip Reach Formula Breaks Down at Realistic Clustering Coefficients
-
-**Severity:** High
-
-**Description:** The whitepaper presents gossip reach as:
-
-```
-reach(h) ~ k * [k(1-C)]^(h-1)
-```
-
-With k=20 and C=0.25, this gives reach(3) ~ 4,500 (90% of a 5,000-node network). The whitepaper then acknowledges: "In highly clustered networks (C > 0.5), actual unique reach is substantially lower because 2-hop neighborhoods overlap heavily."
-
-Real social networks have clustering coefficients of 0.3-0.7 (Facebook: ~0.6, Twitter reciprocal: ~0.4-0.5). At C=0.5:
-
-```
-reach(3) ~ 20 * [20 * 0.5]^2 = 20 * 100 = 2,000
-```
-
-At C=0.6:
-
-```
-reach(3) ~ 20 * [20 * 0.4]^2 = 20 * 64 = 1,280
-```
-
-This is 25-40% of the network, not 90%. The whitepaper acknowledges this produces ~400-500 unique online nodes at realistic online rates (~46%), requiring Tier 4 relay fallback for 5-10% of reads. But this estimate is itself optimistic -- it assumes uniform random neighborhood overlap, which is violated by the community structure (high modularity) that the protocol relies on for gossip confinement. In high-modularity networks, gossip within a community saturates quickly while cross-community reach remains poor.
-
-The consequence: the protocol is more relay-dependent than the headline numbers suggest. For users at community boundaries or in sparse WoT regions, Tier 4 relay fallback may handle 20-40% of reads, not 5-10%.
-
-**Recommendation:** Run simulation sweeps across C in [0.3, 0.7] and modularity Q in [0.3, 0.7] to quantify the actual relay fallback rate. Report results as a range, not a single number. If relay fallback exceeds 15-20% for realistic parameters, consider increasing the gossip TTL to 4 for cross-community hops (while keeping TTL=3 for intra-community) or implementing targeted gossip that prioritizes forwarding to community bridge nodes.
-
----
-
-### S-02: Media Pact Storage Asymmetry Exceeds Volume Tolerance
+### S-01: Media Pact Storage Asymmetry Exceeds Volume Tolerance
 
 **Severity:** Medium
 
@@ -139,7 +107,7 @@ Additionally, media pact count is specified as 3-10 (Keepers only). If only 5-25
 
 ---
 
-### S-03: Full-Node Outbound Bandwidth is Dominated by Text Pact Serving
+### S-02: Full-Node Outbound Bandwidth is Dominated by Text Pact Serving
 
 **Severity:** Medium
 
@@ -153,7 +121,7 @@ This is a scalability concern: full nodes with popular followed authors in their
 
 ---
 
-### S-04: GDPR Deletion Has Structural Gaps for BLE and Re-Ingestion Scenarios
+### S-03: GDPR Deletion Has Structural Gaps for BLE and Re-Ingestion Scenarios
 
 **Severity:** Medium
 
@@ -171,7 +139,7 @@ This is a scalability concern: full nodes with popular followed authors in their
 
 ---
 
-### S-05: Relay Cartel Threat Is Insufficiently Mitigated
+### S-04: Relay Cartel Threat Is Insufficiently Mitigated
 
 **Severity:** High
 
@@ -187,7 +155,7 @@ The real-world relay ecosystem is highly concentrated. Nostr currently has ~1,00
 
 ---
 
-### S-06: Equilibrium-Seeking Formation Produces Asymmetric Keeper Burden
+### S-05: Equilibrium-Seeking Formation Produces Asymmetric Keeper Burden
 
 **Severity:** Medium
 
@@ -199,7 +167,7 @@ The functional diversity constraint (at least 15% of active pacts must be Keeper
 
 ---
 
-### S-07: Gossip Fan-Out Creates Distinguishable Traffic Patterns for ISPs
+### S-06: Gossip Fan-Out Creates Distinguishable Traffic Patterns for ISPs
 
 **Severity:** Low
 
@@ -211,7 +179,7 @@ This is correctly identified as an ISP-level traffic analysis concern, and the d
 
 ---
 
-### S-08: Media Encryption for DMs Is Unspecified
+### S-07: Media Encryption for DMs Is Unspecified
 
 **Severity:** Medium
 
@@ -259,14 +227,13 @@ More importantly, the recipient (follower) decrypts the peer endpoints and learn
 | P-06 | Permanent non-repudiable signatures enable retroactive deanonymization | Medium | Privacy | Acknowledged, no mitigation |
 | P-07 | Kind 10059 endpoint hints leak pact topology to followers | Low | Privacy | By design, risk understated |
 | P-08 | Recovery delegation pseudonymous identifiers are linkable | Low | Privacy | Not acknowledged |
-| S-01 | Gossip reach formula breaks down at realistic clustering coefficients | High | Scalability | Partially acknowledged |
-| S-02 | Media pact storage asymmetry exceeds volume tolerance | Medium | Scalability | Not addressed |
-| S-03 | Full-node outbound bandwidth dominated by read-cache serving | Medium | Scalability | Not addressed |
-| S-04 | GDPR deletion has structural gaps for BLE and re-ingestion | Medium | Compliance | Partially acknowledged |
-| S-05 | Relay cartel threat insufficiently mitigated | High | Privacy/Scalability | Acknowledged, mitigations not implemented |
-| S-06 | Equilibrium-seeking formation produces asymmetric Keeper burden | Medium | Scalability | Partially addressed (PACT_FLOOR) |
-| S-07 | Gossip fan-out creates distinguishable traffic patterns | Low | Privacy | Acknowledged |
-| S-08 | Media encryption for DMs unspecified | Medium | Privacy | Listed as open question |
+| S-01 | Media pact storage asymmetry exceeds volume tolerance | Medium | Scalability | Not addressed |
+| S-02 | Full-node outbound bandwidth dominated by read-cache serving | Medium | Scalability | Not addressed |
+| S-03 | GDPR deletion has structural gaps for BLE and re-ingestion | Medium | Compliance | Partially acknowledged |
+| S-04 | Relay cartel threat insufficiently mitigated | High | Privacy/Scalability | Acknowledged, mitigations not implemented |
+| S-05 | Equilibrium-seeking formation produces asymmetric Keeper burden | Medium | Scalability | Partially addressed (PACT_FLOOR) |
+| S-06 | Gossip fan-out creates distinguishable traffic patterns | Low | Privacy | Acknowledged |
+| S-07 | Media encryption for DMs unspecified | Medium | Privacy | Listed as open question |
 
 ---
 
@@ -274,10 +241,10 @@ More importantly, the recipient (follower) decrypts the peer endpoints and learn
 
 The protocol documentation is unusually honest about its privacy limitations. The surveillance-surface document, the relay-diversity document, and the whitepaper's "What We Don't Know Yet" section collectively acknowledge most of the issues raised here. This intellectual honesty is a strength -- it means the design team understands the threat model.
 
-However, there is a gap between acknowledgment and mitigation. The three highest-severity issues (P-01, P-02, S-05) are all acknowledged in the documentation but have no implemented countermeasures. The protocol ships with rotating tokens that provide no real privacy, DM metadata fully exposed to relays, and no defense against relay collusion beyond relay diversity -- which the documentation itself says is insufficient.
+However, there is a gap between acknowledgment and mitigation. The three highest-severity issues (P-01, P-02, S-04) are all acknowledged in the documentation but have no implemented countermeasures. The protocol ships with rotating tokens that provide no real privacy, DM metadata fully exposed to relays, and no defense against relay collusion beyond relay diversity -- which the documentation itself says is insufficient.
 
 **Privacy grade: C+.** The protocol provides meaningful privacy improvements over centralized platforms (no single point of full visibility, encrypted content, relay fragmentation). But against a moderately motivated adversary (a relay operator with a pubkey directory), the metadata exposure is comprehensive: social graph (~80% reconstructible), DM communication graph (fully visible), pact topology (probabilistically identifiable), and data request targets (fully resolvable). The privacy model is "better than Facebook, worse than Signal" -- which is a legitimate design choice, but the documentation should state this comparison explicitly rather than using language like "pseudonymous" that implies stronger guarantees.
 
-**Scalability grade: B-.** The core architecture scales well for text-only workloads. Media separation is well-designed. The equilibrium-seeking pact formation is mathematically sound. But the gossip reach estimates are optimistic for real-world clustering, the Keeper burden asymmetry may be unsustainable at low Keeper ratios, and the media pact constraint (Keepers only, within 2-hop WoT) may be too restrictive for media-heavy users. The 300MB/day full-node outbound needs clarification -- if read-cache serving is the dominant component, full nodes are bearing CDN-like costs without CDN-like incentives.
+**Scalability grade: B-.** The core architecture scales well for text-only workloads. Media separation is well-designed. The equilibrium-seeking pact formation is mathematically sound. But the Keeper burden asymmetry may be unsustainable at low Keeper ratios, and the media pact constraint (Keepers only, within 2-hop WoT) may be too restrictive for media-heavy users. The 300MB/day full-node outbound needs clarification -- if read-cache serving is the dominant component, full nodes are bearing CDN-like costs without CDN-like incentives.
 
-**Pre-launch blockers:** P-02 (DM metadata) and S-08 (DM media encryption) should be resolved before any deployment targeting privacy-sensitive users. S-04 (GDPR tombstone retention) should be specified before EU deployment. The remainder are design improvements that can be addressed iteratively.
+**Pre-launch blockers:** P-02 (DM metadata) and S-07 (DM media encryption) should be resolved before any deployment targeting privacy-sensitive users. S-03 (GDPR tombstone retention) should be specified before EU deployment. The remainder are design improvements that can be addressed iteratively.
