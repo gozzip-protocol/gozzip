@@ -47,6 +47,22 @@ struct Cli {
     #[arg(long, global = true)]
     nostr_events: bool,
 
+    /// Override graph model (barabasi-albert, watts-strogatz, lfr)
+    #[arg(long = "graph-model", global = true)]
+    graph_model: Option<String>,
+
+    /// Override WS neighbors (k parameter)
+    #[arg(long = "ws-neighbors", global = true)]
+    ws_neighbors: Option<u32>,
+
+    /// Override WS rewire probability
+    #[arg(long = "ws-rewire", global = true)]
+    ws_rewire: Option<f64>,
+
+    /// Enable timezone-based temporal correlation
+    #[arg(long, global = true)]
+    timezone: bool,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -175,6 +191,18 @@ fn main() {
     }
     if cli.nostr_events {
         cfg.simulation.nostr_events = true;
+    }
+    if let Some(ref model) = cli.graph_model {
+        cfg.graph.model = model.clone();
+    }
+    if let Some(ws_neighbors) = cli.ws_neighbors {
+        cfg.graph.ws_neighbors = ws_neighbors;
+    }
+    if let Some(ws_rewire) = cli.ws_rewire {
+        cfg.graph.ws_rewire_prob = ws_rewire;
+    }
+    if cli.timezone {
+        cfg.network.timezone_correlation = true;
     }
 
     match cli.command {
