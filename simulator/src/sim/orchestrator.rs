@@ -125,6 +125,8 @@ pub struct Orchestrator {
     wot_tiers: WotTiers,
     /// Tracks interactions for feed referral mechanism.
     interaction_tracker: InteractionTracker,
+    /// Per-node timezone offset in hours (0..timezone_zones)
+    timezone_offsets: HashMap<NodeId, u32>,
 }
 
 impl Orchestrator {
@@ -135,7 +137,14 @@ impl Orchestrator {
         let graph = graph::build_graph(&config, &mut graph_rng);
         let wot_tiers = graph.compute_wot_tiers();
         let clock = SimClock::new(config.simulation.deterministic);
-        let rng = ChaCha8Rng::seed_from_u64(config.graph.seed.wrapping_add(1));
+        let mut rng = ChaCha8Rng::seed_from_u64(config.graph.seed.wrapping_add(1));
+
+        let mut timezone_offsets = HashMap::new();
+        if config.network.timezone_correlation {
+            for id in 0..graph.node_count {
+                timezone_offsets.insert(id, rng.gen_range(0..config.network.timezone_zones));
+            }
+        }
 
         let interaction_tracker = InteractionTracker::new(config.retrieval.interaction_decay_days);
         Self {
@@ -148,6 +157,7 @@ impl Orchestrator {
             offline_overrides: HashMap::new(),
             wot_tiers,
             interaction_tracker,
+            timezone_offsets,
         }
     }
 
@@ -158,8 +168,15 @@ impl Orchestrator {
     pub fn with_graph(config: SimConfig, graph: Graph) -> Self {
         let wot_tiers = graph.compute_wot_tiers();
         let clock = SimClock::new(config.simulation.deterministic);
-        let rng = ChaCha8Rng::seed_from_u64(config.graph.seed.wrapping_add(1));
+        let mut rng = ChaCha8Rng::seed_from_u64(config.graph.seed.wrapping_add(1));
         let interaction_tracker = InteractionTracker::new(config.retrieval.interaction_decay_days);
+
+        let mut timezone_offsets = HashMap::new();
+        if config.network.timezone_correlation {
+            for id in 0..graph.node_count {
+                timezone_offsets.insert(id, rng.gen_range(0..config.network.timezone_zones));
+            }
+        }
 
         Self {
             config,
@@ -171,6 +188,7 @@ impl Orchestrator {
             offline_overrides: HashMap::new(),
             wot_tiers,
             interaction_tracker,
+            timezone_offsets,
         }
     }
 
@@ -393,9 +411,29 @@ impl Orchestrator {
                     .node_types
                     .get(&id)
                     .unwrap_or(&NodeType::Light);
-                let uptime = match node_type {
-                    NodeType::Full => self.config.network.full_uptime,
-                    NodeType::Light => self.config.network.light_uptime,
+                let uptime = if self.config.network.timezone_correlation {
+                    let base_uptime = match node_type {
+                        NodeType::Full => self.config.network.full_uptime,
+                        NodeType::Light => self.config.network.light_uptime,
+                    };
+                    let tz_offset = self.timezone_offsets.get(&id).copied().unwrap_or(0);
+                    let hours_in_day = 24.0;
+                    let local_hour = ((time / 3600.0) + tz_offset as f64) % hours_in_day;
+                    // Cosine curve: peak at local_hour=14 (2pm), trough at local_hour=4 (4am)
+                    let phase = (local_hour - 14.0) * std::f64::consts::PI * 2.0 / hours_in_day;
+                    let multiplier = {
+                        let peak = self.config.network.timezone_peak_multiplier;
+                        let trough = self.config.network.timezone_trough_multiplier;
+                        let mid = (peak + trough) / 2.0;
+                        let amplitude = (peak - trough) / 2.0;
+                        mid + amplitude * phase.cos()
+                    };
+                    (base_uptime * multiplier).clamp(0.0, 1.0)
+                } else {
+                    match node_type {
+                        NodeType::Full => self.config.network.full_uptime,
+                        NodeType::Light => self.config.network.light_uptime,
+                    }
                 };
 
                 let roll: f64 = self.rng.gen();

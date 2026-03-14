@@ -67,6 +67,18 @@ pub struct NetworkConfig {
     pub app_sessions: u32,
     pub gossip_fallback: f64,
     pub clustering: f64,
+    /// Enable timezone-based uptime modulation
+    #[serde(default)]
+    pub timezone_correlation: bool,
+    /// Number of distinct timezone groups (default 24 for hourly zones)
+    #[serde(default = "default_timezone_zones")]
+    pub timezone_zones: u32,
+    /// Peak uptime multiplier (during local daytime hours)
+    #[serde(default = "default_timezone_peak_multiplier")]
+    pub timezone_peak_multiplier: f64,
+    /// Trough uptime multiplier (during local nighttime hours)
+    #[serde(default = "default_timezone_trough_multiplier")]
+    pub timezone_trough_multiplier: f64,
 }
 
 // ── EventConfig ──────────────────────────────────────────────────────
@@ -115,6 +127,18 @@ fn default_activity_skew() -> f64 {
     1.2
 }
 
+fn default_timezone_zones() -> u32 {
+    24
+}
+
+fn default_timezone_peak_multiplier() -> f64 {
+    1.4
+}
+
+fn default_timezone_trough_multiplier() -> f64 {
+    0.4
+}
+
 // ── EventMixConfig ───────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,7 +160,32 @@ pub struct GraphConfig {
     pub ba_edges_per_node: u32,
     pub ws_neighbors: u32,
     pub ws_rewire_prob: f64,
+    /// LFR: power-law exponent for degree distribution (typically 2.0-3.0)
+    #[serde(default = "default_lfr_tau1")]
+    pub lfr_tau1: f64,
+    /// LFR: power-law exponent for community size distribution (typically 1.0-2.0)
+    #[serde(default = "default_lfr_tau2")]
+    pub lfr_tau2: f64,
+    /// LFR: mixing parameter — fraction of edges crossing community boundaries
+    #[serde(default = "default_lfr_mu")]
+    pub lfr_mu: f64,
+    /// LFR: target average degree
+    #[serde(default = "default_lfr_avg_degree")]
+    pub lfr_avg_degree: u32,
+    /// LFR: minimum community size
+    #[serde(default = "default_lfr_min_community")]
+    pub lfr_min_community: u32,
+    /// LFR: maximum community size
+    #[serde(default = "default_lfr_max_community")]
+    pub lfr_max_community: u32,
 }
+
+fn default_lfr_tau1() -> f64 { 2.5 }
+fn default_lfr_tau2() -> f64 { 1.5 }
+fn default_lfr_mu() -> f64 { 0.3 }
+fn default_lfr_avg_degree() -> u32 { 20 }
+fn default_lfr_min_community() -> u32 { 20 }
+fn default_lfr_max_community() -> u32 { 200 }
 
 // ── SimulationConfig ─────────────────────────────────────────────────
 
@@ -319,6 +368,10 @@ impl Default for SimConfig {
                 app_sessions: 10,
                 gossip_fallback: 0.02,
                 clustering: 0.25,
+                timezone_correlation: false,
+                timezone_zones: default_timezone_zones(),
+                timezone_peak_multiplier: default_timezone_peak_multiplier(),
+                timezone_trough_multiplier: default_timezone_trough_multiplier(),
             },
             events: EventConfig {
                 note_bytes: 800,
@@ -347,6 +400,12 @@ impl Default for SimConfig {
                 ba_edges_per_node: 10,
                 ws_neighbors: 20,
                 ws_rewire_prob: 0.1,
+                lfr_tau1: default_lfr_tau1(),
+                lfr_tau2: default_lfr_tau2(),
+                lfr_mu: default_lfr_mu(),
+                lfr_avg_degree: default_lfr_avg_degree(),
+                lfr_min_community: default_lfr_min_community(),
+                lfr_max_community: default_lfr_max_community(),
             },
             simulation: SimulationConfig {
                 duration_days: 30,
