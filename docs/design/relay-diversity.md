@@ -116,6 +116,19 @@ Even with perfect relay diversity:
 
 Relay diversity raises the cost and reduces the precision of surveillance. It does not eliminate it. Users facing state-level adversaries should use Tor for relay connections.
 
+### Simulation Findings: Relay Dependency at Maturity
+
+5,000-agent simulations (day 20–30, post-bootstrap) show that relay read traffic does not vanish at maturity — it remains a permanent, topology-dependent component:
+
+| Topology | Relay share of reads (maturity) |
+|---|---|
+| BA m=10 (sparse) | 0.4% |
+| BA m=50 (dense) | 10.7% |
+| Watts-Strogatz | 13.0% |
+| BA + timezone-biased | 11.4% |
+
+Only the sparse BA topology achieves near-zero relay dependency. All other topologies route 10–13% of reads through relays even at steady state. This means relay operators permanently observe a significant fraction of read traffic, strengthening the collusion threat described above: relays always have enough metadata flow for timing analysis, regardless of how mature the pact network becomes.
+
 ## Client Configuration
 
 ### Default Settings

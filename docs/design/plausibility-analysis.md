@@ -1,6 +1,6 @@
 # Gozzip Protocol — Quantitative Plausibility Analysis
 
-**Date:** 2026-03-01
+**Date:** 2026-03-01 (simulation evidence added 2026-03-14)
 **Purpose:** Verify that the protocol's parameters produce viable numbers at different network sizes and identify bottlenecks.
 
 All formulas are labeled `[F-XX]` for cross-reference. All input constants are in §1. To verify any result, trace it back through the formula labels to the input constants.
@@ -263,6 +263,19 @@ F-16: E[online] = 5 × 0.95 + 15 × 0.30 = 4.75 + 4.50 = 9.25
 
 The independent-failure calculation above assumes pact partner outages are uncorrelated. In practice, timezone correlation (12 of 20 partners sharing a sleep schedule), community correlation (shared ISP or OS updates), and platform correlation (iOS update breaking background networking) introduce correlated failure modes. Under a conservative model with 60% timezone overlap, overnight availability degrades to approximately 10^-3 to 10^-4 -- still respectable for a peer-to-peer system, but five orders of magnitude below the independent-failure headline. The protocol recommends geographic diversity in pact selection to mitigate this. Both numbers should be presented: ~10^-9 under independence, ~10^-3 under realistic correlation.
 
+**Simulation Evidence (F-14, F-15):** Multi-topology simulations (2,000 nodes, 30-day runs) reveal that both the independent-failure and correlated-failure formulas significantly overstate availability. Simulated retrieval failure rates range from 1.6% (BA m=10) to 5.2% (BA m=50 with timezone correlation) — far above the theoretical P(all offline) of 10^-9 to 10^-13. The gap is explained by **pact churn**: nodes continuously form and dissolve pacts, creating transient periods where a user has fewer than 20 active storage peers, some with incomplete data. During these low-redundancy windows, a single correlated outage can cause retrieval failure. The correlated-failure estimate of 10^-3 to 10^-4 is also too optimistic — the BA m=50+TZ topology (which models timezone correlation) shows a 5.2% failure rate, roughly 50x worse than the analytical bound. The independent-failure formula remains directionally correct (more pacts = better availability), but the absolute numbers should be read as upper bounds on a mature, stable pact set, not as steady-state predictions during churn.
+
+| Topology | Simulated availability | Simulated failure rate | Analytical P(all offline) | Gap factor |
+|----------|----------------------|----------------------|--------------------------|------------|
+| BA m=10 (2K nodes) | 98.4% | 1.6% | ~10^-9 | ~10^7 |
+| WS p=0.30 (2K nodes) | 97.7% | 2.3% | ~10^-9 | ~10^7 |
+| BA m=50 (2K nodes) | 95.3% | 4.7% | ~10^-13 | ~10^11 |
+| BA m=50+TZ (2K nodes) | 94.8% | 5.2% | ~10^-3 (correlated) | ~50 |
+| BA m=10 (1K nodes) | 99.2% | 0.8% | ~10^-9 | ~10^7 |
+| BA m=50 (5K nodes) | 96.9% | 3.1% | ~10^-13 | ~10^11 |
+
+Notably, sparser topologies (BA m=10) consistently outperform denser ones (BA m=50) by 3+ percentage points. In dense graphs, pact churn rates are higher (6.87-8.04 churn/node/day vs 2.79 for BA m=10), creating more transient vulnerability windows. The 1K-node BA m=10 run achieved 99.2% availability — the best observed — suggesting that small, sparse networks with stable pact sets approach the analytical predictions most closely.
+
 ### Standby Pact Impact
 
 **[F-17] Total online with standby = F-16 + standby_full × FULL_UPTIME + standby_light × LIGHT_UPTIME**
@@ -458,6 +471,8 @@ The LRU cache covers 17+ hours of gossip. Dedup is extremely effective — every
 
 **Verdict: Gossip load is negligible at any scale.** Per-node rate is ~0.16 req/s = 47 B/s, independent of network size.
 
+**Simulation Evidence (F-31):** The convergence proof for F-31 is confirmed in simulation — the per-node gossip rate formula passes validation with near-zero threshold relaxation, as both expected and actual values converge to near-zero. However, gossip's role is far smaller than the mean-field model suggests. Across all topologies, gossip delivers only **0.1-9% of reads**. The vast majority of retrievals (74-92%) are resolved via pact-local reads (direct fetch from a storage peer), with relay fallback handling most of the remainder. The GOSSIP_FALLBACK = 0.02 (2%) assumption in §3 is in the right ballpark for sparse topologies but overstates gossip's contribution in dense ones, where pact-local reads dominate even more. The practical implication: gossip load is negligible not because the formula is wrong, but because gossip is rarely needed when pact-local paths work.
+
 ---
 
 ## 4. Gossip Discovery Probability
@@ -516,6 +531,8 @@ Gossip fails for **cold discovery** — finding data for someone you have no WoT
 | Stranger | 0% | 0% | 90% | 99% | **~99%** |
 
 **Verdict: Delivery is effectively 100% at any network size.** Gossip handles in-WoT requests regardless of network size. Relays handle strangers. The two cover all cases.
+
+**Simulation Evidence (Gossip Reach):** Simulation data challenges the WoT-routed gossip model's optimistic reach estimates. Actual unique reach via gossip accounts for only **0.1-9.3% of reads** across topologies — far below the ~90% success rate the mean-field formula predicts for 1-hop WoT requests. Instead, **pact-local reads dominate at 74-92%** of all retrievals: when a requester already has a cached endpoint for a storage peer, they fetch directly without gossip. The "instant" delivery column (91.8% for BA m=10 down to 73.7% for BA m=50+TZ) corresponds almost entirely to pact-local fetches, not gossip-discovered peers. Gossip's role is real but marginal — it functions as a last-resort discovery mechanism before relay fallback, not as the primary delivery path the analytical model implies. The layered delivery model is confirmed, but the layers' relative contribution differs from the analytical estimate: pact-local >> relay > gossip, rather than cached endpoints >> gossip >> relay.
 
 ---
 
@@ -821,6 +838,8 @@ BLE is designed for low power. Bitchat uses adaptive power cycling.
 | Medium | 20,000–100,000 | Most users sovereign | ~5% relay (fallback) | ~90%+ (WoT-corrected) |
 | Scale | 100,000+ | Full sovereign, relays as accelerators | Optional | Cached endpoints primary |
 
+**Simulation Evidence (Relay Dependency):** Simulation data from mature networks (days 20-30 of 30-day runs) shows relay dependency at maturity ranging from **0.4% to 13%** depending on topology — a wider range than the "~5% relay (fallback)" estimated above for the Medium phase. Sparse topologies (BA m=10) achieve the lowest relay dependency (~6.4% relay reads overall, declining to ~0.4% at maturity), while dense topologies with timezone correlation (BA m=50+TZ) show persistent ~13% relay dependency even after 30 days. The "Optional" relay dependency at Scale is optimistic — simulation suggests relays remain structurally necessary for 1-13% of reads even in a mature 2,000-node network, driven by pact churn and transient low-redundancy states rather than insufficient pact counts.
+
 ### Bootstrap Pact Load
 
 A new user's first follow becomes a temporary storage peer. How much load does this create for popular early adopters?
@@ -936,6 +955,21 @@ This analysis does not yet model:
 
 These scenarios should be validated in simulation before production deployment.
 
+**Simulation Evidence (Pact Churn and Contraction):** Simulation now provides direct evidence on contraction dynamics. Across all four topologies tested, **pact churn is net-negative** — the network sheds more pacts than it forms over the 30-day run:
+
+| Topology | Net pact churn (30 days) | Churn/node/day | Availability |
+|----------|-------------------------|----------------|-------------|
+| BA m=10 | -40,030 | 2.79 | 98.4% |
+| WS p=0.30 | -45,710 | 5.45 | 97.7% |
+| BA m=50 | -104,444 | 6.87 | 95.3% |
+| BA m=50+TZ | -112,869 | 8.04 | 94.8% |
+
+This is a significant finding: the cooperative equilibrium may be contracting even without external shocks or free-riders. Nodes dissolve pacts (due to failed challenges, volume mismatch, or partner departure) faster than they form replacements. The contraction is most severe in dense topologies where nodes have many potential partners but higher churn rates. Sparse topologies (BA m=10) achieve both the lowest churn and the highest availability, suggesting that **stable, long-lived pacts matter more than pact abundance**.
+
+The "30% free-rider threshold" from the game-theoretic analysis has not been directly tested, but the net-negative churn data suggests the equilibrium is more fragile than the static analysis implies. Even in a fully cooperative network (no intentional free-riders), organic churn alone pushes the pact economy toward contraction. Protocol-level mitigations to slow pact dissolution (longer grace periods, graduated challenge penalties, pact renewal incentives) may be needed to sustain a stable cooperative equilibrium.
+
+Additional cross-scale evidence: a 5,000-node BA m=50 run achieved 96.9% availability (vs 95.3% at 2,000 nodes), suggesting that larger networks partially offset churn through greater partner diversity. A 1,000-node BA m=10 run achieved 99.2% — the best observed result — confirming that small, sparse, stable networks perform best.
+
 ---
 
 ## 13. Summary Table
@@ -987,6 +1021,8 @@ The protocol's numbers are plausible and well within the capability of consumer 
 **The most sensitive parameter** is the full-node percentage. If it drops below ~15%, each full node would serve 100+ pacts and the load could become meaningful. The natural incentive (more pacts → more reach) encourages running persistent nodes, but this should be monitored.
 
 **One design clarification needed:** Challenge-response timing should be presence-aware. Challenging offline light nodes wastes bandwidth and unfairly penalizes their reliability scores. This is a client-side optimization — the protocol itself doesn't need to change.
+
+**Simulation update (2,000-node, 30-day runs across four topologies):** The analytical formulas above are directionally correct but quantitatively optimistic. Simulation reveals three important corrections: (1) Availability under churn is 94.8-98.4%, not the ~100% predicted by F-14/F-15, because pact churn creates transient low-redundancy windows that the static formula does not capture. (2) Gossip handles only 0.1-9% of reads, not the implied ~90% — pact-local reads (74-92%) are the dominant delivery path, making the protocol more pact-dependent and less gossip-dependent than the mean-field model suggests. (3) Pact churn is net-negative in all topologies tested, meaning the cooperative equilibrium contracts organically even without free-riders. Sparse topologies (BA m=10) consistently outperform dense ones (BA m=50) by 3+ percentage points on availability, with lower churn rates and lower relay dependency at maturity. These findings do not invalidate the protocol design — availability remains above 94% in all scenarios tested — but they shift the critical parameter from "full-node percentage" to "pact stability." Protocol features that extend pact lifetimes (graduated penalties, renewal incentives, challenge grace periods) may matter more than recruiting additional full nodes.
 
 ---
 

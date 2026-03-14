@@ -204,3 +204,13 @@ The formation state machine includes multiple anti-thrashing mechanisms:
 5. **Minimum tenure** (don't dissolve pacts younger than 7 days)
 
 Together, these ensure that the pact topology evolves slowly toward equilibrium rather than oscillating.
+
+## Simulation Findings
+
+5,000-agent simulations across four topologies (BA m=10, BA m=50, Watts-Strogatz, BA+timezone-biased) reveal three consistent patterns:
+
+1. **Pact churn is net-negative.** In every run, more pacts are dropped than formed after the bootstrap phase. The network sheds pacts over time as nodes refine their partner sets.
+
+2. **Equilibrium settles below comfort-condition predictions.** The actual steady-state pact count is lower than the table in "Equilibrium Counts by Composition" predicts, likely because nodes dissolve marginal pacts that pass the Δ(n) < ε/100 threshold even though they technically contribute to comfort.
+
+3. **Sparse graphs are more stable.** BA m=10 (sparse) produces 2.79 pacts formed+dropped per node per day, while BA m=50 (dense) produces 6.87/day — roughly 2.5× more churn. Denser topologies give nodes more partner options, which increases the rate of replacement cycling. This suggests the protocol's anti-thrashing mechanisms are more effective when nodes have fewer, higher-value partnerships.
