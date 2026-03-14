@@ -210,13 +210,15 @@ This directly justifies the protocol's gossip TTL of 3 hops. In a small-world ne
   \text{reach}(h) \approx k \cdot [k(1-C)]^{h-1}
 \end{equation}
 
-For a 5,000-node network with $k=20$ and $C=0.25$: $\text{reach}(1) = 20$, $\text{reach}(2) = 300$, $\text{reach}(3) \approx 4{,}500$. Three hops cover 90\%+ of the network. Increasing TTL to 4 would add minimal reach at substantial bandwidth cost---the logarithmic path length means most information arrives within 2--3 hops.
+For a 5,000-node network with $k=20$ and $C=0.25$: $\text{reach}(1) = 20$, $\text{reach}(2) = 300$, $\text{reach}(3) \approx 4{,}500$. Three hops theoretically cover 90\%+ of the network. In practice, however, simulation across multiple graph topologies (Barab\'{a}si--Albert, Watts--Strogatz, LFR benchmark) shows that gossip delivers only 0.1--9\% of reads; the vast majority (74--92\%) are served instantly from local pact storage. The protocol's effectiveness derives primarily from pact-local reads, not gossip propagation. Gossip serves as a secondary delivery mechanism for content not yet cached locally, while relay fallback (Tier~4) handles an additional 6--21\% of reads depending on topology and network maturity. Increasing TTL to 4 would add minimal reach at substantial bandwidth cost---the logarithmic path length means most information arrives within 2--3 hops.
 
 The small-world structure also explains why WoT-bounded gossip works at all: the combination of local clustering (friends share friends) and short paths (any two nodes are connected by a few hops) means that a gossip message restricted to 2-hop WoT peers can still reach most of the relevant network through trust-weighted forwarding.
 
 \subsection{Scale-Free Topology: Robustness and Vulnerability}
 
-The protocol's simulation uses Barab\'{a}si--Albert (BA) preferential attachment~\cite{barabasi-albert} to generate social graphs with power-law degree distributions $P(k) \sim k^{-\gamma}$. This choice follows a common modeling convention: online social networks exhibit heavy-tailed degree distributions with properties qualitatively similar to scale-free networks, though whether they follow strict power-law distributions is debated~\cite{broido-clauset}. The BA model is a useful approximation---not an exact match---for exploring the protocol's behavior on heterogeneous graphs.
+The protocol's simulation uses Barab\'{a}si--Albert (BA) preferential attachment~\cite{barabasi-albert} to generate social graphs with power-law degree distributions $P(k) \sim k^{-\gamma}$. This choice follows a common modeling convention: online social networks exhibit heavy-tailed degree distributions with properties qualitatively similar to scale-free networks, though whether they follow strict power-law distributions is debated~\cite{broido-clauset}. The BA model is a useful approximation---not an exact match---for exploring the protocol's behavior on heterogeneous graphs. The simulator also supports Watts--Strogatz small-world graphs~\cite{watts-strogatz} and LFR benchmark graphs~\cite{lancichinetti-lfr} for community structure analysis.
+
+\textbf{Graph density and protocol performance:} Simulation reveals a counterintuitive result---sparser BA graphs ($m{=}10$, average degree ${\sim}20$) achieve higher availability (98.4\%) than denser graphs ($m{=}50$, average degree ${\sim}100$) at 95.3\%. Sparser graphs produce more pronounced hub structure, which improves pact partner diversity and reduces correlated failures. Watts--Strogatz small-world graphs (97.7\%) fall between the two, with higher gossip utilization (9.3\% of reads vs.\ $<$0.1\% for BA) compensating for less pronounced hub structure.
 
 Albert, Jeong, and Barab\'{a}si~\cite{albert-attack} proved a fundamental asymmetry in scale-free networks:
 
@@ -605,7 +607,7 @@ hop 3: 300 * 20 * (1 - 0.25) = 4,500 nodes
 
 Cumulative reach: ${\sim}4{,}820$ nodes within 3 hops.
 
-This is a mean-field approximation that assumes uniform random neighborhood overlap. In highly clustered networks ($C > 0.5$), actual unique reach is substantially lower because 2-hop neighborhoods overlap heavily. At realistic online rates (${\sim}46\%$), the unique \emph{online} reach is approximately 400--500 nodes. The protocol compensates through WoT-targeted forwarding (gossip is directed at likely holders, not broadcast randomly) and relay fallback (Tier~4) for the estimated 5--10\% of reads that gossip alone cannot serve.
+This is a mean-field approximation that assumes uniform random neighborhood overlap. In highly clustered networks ($C > 0.5$), actual unique reach is substantially lower because 2-hop neighborhoods overlap heavily. At realistic online rates (${\sim}46\%$), the unique \emph{online} reach is approximately 400--500 nodes. Simulation confirms that gossip delivers only 0.1--9.3\% of reads across tested topologies; the protocol's primary delivery mechanism is pact-local instant reads (74--92\%), not gossip propagation. The protocol compensates through WoT-targeted forwarding (gossip is directed at likely holders, not broadcast randomly) and relay fallback (Tier~4) which handles 6--21\% of reads depending on topology and network maturity.
 
 \subsection{Rate Limiting and Gossip Hardening}
 
@@ -638,7 +640,25 @@ With representative parameters ($P=20$, $f=0.25$, $u_{\text{full}}=0.95$, $u_{\t
 
 Under the assumption of independent failures, this represents approximately one-in-a-billion chance of complete data unavailability at any instant.
 
-The above calculation assumes independent failures across pact partners. In practice, timezone correlation (pact partners in the same timezone sleeping simultaneously) and community correlation (shared ISP, shared OS updates) introduce correlated failure modes. Under a conservative model where 12 of 20 pact partners share a timezone, overnight availability degrades to approximately $10^{-3}$ to $10^{-4}$. The protocol recommends geographic diversity in pact partner selection to mitigate this. Under realistic conditions, availability is 99.9--99.97\%---still superior to any single relay, but not the headline independent-failure number.
+The above calculation assumes independent failures across pact partners. In practice, timezone correlation (pact partners in the same timezone sleeping simultaneously) and community correlation (shared ISP, shared OS updates) introduce correlated failure modes. Discrete-event simulation across multiple graph topologies at 2,000 nodes provides empirical availability figures:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Topology} & \textbf{Availability} & \textbf{Instant} & \textbf{Relay} & \textbf{Failed} \\
+\midrule
+BA $m{=}10$ (sparse) & 98.4\% & 91.8\% & 6.4\% & 1.6\% \\
+WS $p{=}0.30$ (small-world) & 97.7\% & 77.9\% & 9.0\% & 2.3\% \\
+BA $m{=}50$ (dense) & 95.3\% & 76.5\% & 18.8\% & 4.7\% \\
+BA $m{=}50$ + timezone & 94.8\% & 73.7\% & 21.1\% & 5.2\% \\
+\bottomrule
+\end{tabular}
+\caption{Simulated content availability across graph topologies (2,000 nodes, 30-day runs, seed=42). Sparser graphs with clearer hub structure outperform dense graphs. Timezone correlation reduces availability by ${\sim}0.5\%$.}
+\end{table}
+
+Simulated availability (94.8--98.4\%) is substantially below the independent-failure theoretical bound ($10^{-9}$) and below the earlier correlated-failure estimate of 99.9--99.97\%, primarily because pact churn (formation and dissolution dynamics) creates transient periods of reduced redundancy not captured by static probability models. Availability improves sharply with pact maturity: day~1--5 availability is 89--94\%, rising to 97--99.9\% by day~20--30 across all topologies. The protocol recommends geographic diversity in pact partner selection to mitigate timezone correlation.
 
 \subsection{Relay-Mediated Encrypted Channels (NIP-46)}
 
@@ -871,7 +891,7 @@ The two most prominent decentralized social protocols---Nostr~\cite{nostr} and M
 \midrule
 \textbf{Where data lives} & Relay servers & Home instance (PostgreSQL) & User's device + 12--40 pact partners (equilibrium-seeking) \\
 \textbf{Who controls} & Relay operators & Instance admin & User + bilateral pact partners \\
-\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & Equilibrium-seeking pact count + 3 standby; availability 99.9--99.97\% under realistic correlated failures ($10^{-9}$ under theoretical independent-failure assumption) \\
+\textbf{Redundancy} & Manual multi-relay publishing & None---single home instance & Equilibrium-seeking pact count + 3 standby; simulated availability 94.8--98.4\% across topologies ($10^{-9}$ under theoretical independent-failure assumption) \\
 \textbf{If infra dies} & Events lost unless duplicated & All posts from instance lost & Pact partners retain copies \\
 \bottomrule
 \end{tabularx}
@@ -937,7 +957,7 @@ Our protocol addresses both failure modes by making the social graph the infrast
 
 The trade-off is protocol complexity: pact negotiation, challenge-response verification, WoT computation, and multi-tier retrieval are substantially more complex than Nostr's REQ/EVENT or Mastodon's HTTP POST delivery.
 
-The honest gap: our protocol is validated analytically and by simulation. Nostr has ${\sim}1{,}000$ relays and real users. Mastodon has ${\sim}26{,}000$ instances and ${\sim}1.2$M monthly active users. The architectural claims require production-scale validation.
+The honest gap: our protocol is validated analytically and by discrete-event simulation across multiple graph topologies (Barab\'{a}si--Albert, Watts--Strogatz) at up to 2,000 nodes, including timezone-correlated uptime modeling. Simulation confirms availability of 94.8--98.4\% (below our earlier theoretical estimates of 99.9\%) and shows that pact-local instant reads (74--92\%) dominate over gossip delivery (0.1--9\%). Nostr has ${\sim}1{,}000$ relays and real users. Mastodon has ${\sim}26{,}000$ instances and ${\sim}1.2$M monthly active users. The architectural claims require production-scale validation.
 
 % ============================================================
 \section{Conclusion}
@@ -946,7 +966,7 @@ We have presented an open, censorship-resistant protocol for social media and me
 
 The protocol's design mirrors human social dynamics: reciprocal storage pacts parallel reciprocal friendships, WoT-filtered gossip parallels trust-based information sharing, and the Full/Light node distinction mirrors the inner-circle/outer-circle structure of human communities.
 
-The tiered retrieval cascade ensures that the vast majority of reads are served from local pact storage, with relay fallback reserved for cold-start and beyond-graph content. As pacts mature, relay dependency decays naturally---the relay is demoted from gatekeeper to optional accelerator, useful during bootstrap and for distant authors, but not required for typical social reading patterns.
+The tiered retrieval cascade ensures that the vast majority of reads are served from local pact storage, with relay fallback reserved for cold-start and beyond-graph content. Simulation across Barab\'{a}si--Albert and Watts--Strogatz topologies confirms this: 74--92\% of reads are instant (pact-local), relay dependency decays from 25--44\% (day~1--5) to 0.4--11\% (day~20--30), and sparser hub-structured graphs (BA $m{=}10$, 98.4\% availability) outperform dense graphs (BA $m{=}50$, 95.3\%). The relay is demoted from gatekeeper to optional accelerator, useful during bootstrap and for distant authors, but not required for typical social reading patterns.
 
 Integration with FIPS extends the protocol beyond internet dependence, enabling operation over mesh radio, Bluetooth, and other transports. The shared Nostr identity model eliminates bridging complexity: a user's social identity is simultaneously their network address.
 
@@ -1106,7 +1126,7 @@ The transition is voluntary and invisible. Relay dependency drops naturally as p
 This roadmap is a deployment plan for a protocol validated analytically, not by production experience. Several questions remain open:
 
 \begin{itemize}
-  \item \textbf{Minimum viable network size for Phase~2.} At what user count does opportunistic pact retrieval deliver measurably better failure rates than relay-only? The effect should emerge early as pacts form, but real-world network density may differ from theoretical graph models.
+  \item \textbf{Minimum viable network size for Phase~2.} At what user count does opportunistic pact retrieval deliver measurably better failure rates than relay-only? Simulation at 1,000 and 2,000 nodes shows the pact benefit emerges quickly: day~1--5 availability is 89--94\%, rising to 97--99\% by day~10--20, with pact-local reads dominating after the first week. Real-world network density may still differ from graph models.
 
   \item \textbf{Whether a sufficient full node ratio emerges organically.} The equilibrium model shows that Keepers reach comfort at ${\sim}7$ pacts while Witnesses need ${\sim}35$---creating an asymmetric equilibrium where Keepers have no self-interested reason to accept beyond their comfort threshold. The PACT\_FLOOR of 12 addresses this structurally, but whether the resulting social incentive is sufficient in practice is an empirical question. Comparable decentralized systems achieve 0.1--5\% always-on node participation. The relay-as-Keeper integration model may help bridge this gap.
 
@@ -1262,6 +1282,11 @@ Nostr Protocol.
 Permissionless Tech.
 \newblock ``BitChat Protocol Whitepaper.''
 \newblock \url{https://github.com/permissionlesstech/bitchat}, 2025.
+
+\bibitem{lancichinetti-lfr}
+A.~Lancichinetti, S.~Fortunato, and F.~Radicchi.
+\newblock ``Benchmark graphs for testing community detection algorithms.''
+\newblock \emph{Physical Review E}, 78(4):046110, 2008.
 
 \end{thebibliography}
 
