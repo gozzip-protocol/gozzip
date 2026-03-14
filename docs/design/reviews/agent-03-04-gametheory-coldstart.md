@@ -91,6 +91,8 @@ The reliability scoring system will eventually detect this (score drops below 50
 
 This creates a "partial defection" equilibrium that is individually rational and difficult to punish: the defector is not a free rider (they maintain some pacts) but is extracting more value than they contribute. If 30% of users adopt this strategy, the effective cooperation rate is much lower than 70%, even though 70% of users nominally participate in pacts.
 
+**Simulation evidence:** Simulation confirms this concern. In all tested topologies, pact churn is net-negative (more drops than formations), with churn rates of 2.8--8.0 pacts/node/day. This suggests partial defection or volume-matching failures are already causing pact economy contraction in the current model, even without strategic actors.
+
 **Recommendation:** The reliability scoring system should penalize partial defection more aggressively. Consider a "pact set completeness" metric that is visible to potential pact partners: a user who has dropped from 20 to 10 pacts without replacement should be deprioritized in pact formation offers. Alternatively, make the forwarding bonus proportional to the user's current pact count relative to their equilibrium target, not just binary (has pacts / doesn't have pacts).
 
 ---
@@ -138,7 +140,9 @@ In most two-equilibrium systems, once the system enters the bad equilibrium, the
 
 The contraction risk analysis in the plausibility document (Section 12) acknowledges this spiral but does not model recovery. The question is not just "what percentage of defection causes collapse" but "once collapsed, can the cooperative equilibrium be restored?" In the current design, the answer appears to be no -- restarting would require another Genesis bootstrap, effectively relaunching the network.
 
-**Recommendation:** Design a recovery mechanism for the cooperative equilibrium. One option: if pact participation drops below a critical threshold (e.g., 20% of active users), the protocol could re-activate Genesis-style guardian nodes automatically (relay operators offering pact services for Lightning payments). Another option: make the forwarding priority gradient steeper during low-cooperation periods, so that the few remaining cooperators have outsized reach advantages. The goal is to make the cooperative equilibrium an attractor basin, not just a stable point.
+**Simulation evidence:** Simulation results strengthen this concern significantly. Every tested topology shows net-negative pact churn (formed < dropped) over 30 days, with churn rates of 2.8--8.0/node/day. This suggests the cooperative equilibrium may already be in slow contraction even under the simulation's optimistic assumptions (no strategic actors, uniform activity). The contraction is worse in dense topologies (BA m=50: -104,444 net) than sparse ones (BA m=10: -40,030 net), and timezone correlation accelerates it (BA m=50+TZ: -112,869 net).
+
+**Recommendation:** Design a recovery mechanism for the cooperative equilibrium. One option: if pact participation drops below a critical threshold (e.g., 20% of active users), the protocol could re-activate Genesis-style guardian nodes automatically (relay operators offering pact services for Lightning payments). Another option: make the forwarding priority gradient steeper during low-cooperation periods, so that the few remaining cooperators have outsized reach advantages. The goal is to make the cooperative equilibrium an attractor basin, not just a stable point. Additionally, investigate whether the volume-tolerance threshold ($\delta$=0.30) or reliability score thresholds are too aggressive, causing unnecessary pact dissolution.
 
 ---
 

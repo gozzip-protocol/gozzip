@@ -151,6 +151,8 @@ The protocol currently ships with only relay diversity as a defense, and the doc
 
 The real-world relay ecosystem is highly concentrated. Nostr currently has ~1,000 relays, but traffic is dominated by a handful. If Gozzip inherits this concentration, the relay cartel threat is not hypothetical -- it is the default deployment scenario.
 
+**Simulation evidence:** Simulation confirms that relay dependency does not vanish even in mature networks. At day 20-30, relay handles 0.4% of reads for sparse BA graphs but 8-13% for dense/small-world topologies. This means relay operators see a permanently significant fraction of all retrieval traffic, providing ongoing metadata collection capability.
+
 **Recommendation:** (a) Prioritize implementing NIP-59 gift wrapping for NIP-46 pact communication -- this is the highest-impact mitigation that does not require Tor. (b) Implement cover traffic as default, not opt-in. (c) Consider a relay reputation system where clients track which relays serve events reliably and which drop or delay events selectively, sharing these observations through the WoT (not globally, to prevent gaming). (d) Explore a mixed-relay strategy where each protocol operation type (event publishing, DMs, pact communication, data requests) uses a different relay, maximizing the number of relays an adversary must compromise for full visibility.
 
 ---
