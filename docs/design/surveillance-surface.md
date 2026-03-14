@@ -217,6 +217,76 @@ NIP-59 gift wraps expose both sender and recipient to the relay operator. The se
 - Batch DM delivery — queue and publish in fixed intervals to degrade timing precision
 - Consider pseudonymous recipient identifiers for DM routing (requires recipients to poll rather than relay-route)
 
+## BLE Physical-Layer Privacy Limitations
+
+The BLE device profile above describes the cryptographic surveillance surface — what protocol-level observers can learn. However, BLE has fundamental physical-layer privacy limitations that exist independently of Gozzip's cryptographic design.
+
+### RF fingerprinting
+
+Every BLE radio has manufacturing imperfections — clock drift, frequency offset, power amplifier nonlinearities — that create a unique radio signature. An adversary with software-defined radio (SDR) equipment can fingerprint a specific BLE chipset and track it across sessions, regardless of ephemeral key rotation at the application layer. The cryptographic identity changes; the radio hardware identity does not.
+
+This is not a theoretical concern. Academic research has demonstrated BLE device fingerprinting with >90% accuracy using commodity SDR hardware. Gozzip's ephemeral subkey rotation provides cryptographic unlinkability, but the physical layer beneath it remains linkable to anyone with appropriate equipment.
+
+### RSSI-based location tracking
+
+BLE signal strength (RSSI) measurements enable coarse physical location tracking. An adversary deploying multiple BLE receivers in an area can triangulate a device's position and track its movement over time. This tracking persists across ephemeral key rotations because the signal characteristics come from the hardware, not the protocol.
+
+### Temporal pattern fingerprinting
+
+Even without RF fingerprinting, session duration and data volume patterns can fingerprint users. A device that consistently participates in mesh traffic for 45 minutes during a morning commute creates a temporal signature. Combined with RSSI patterns, this can identify a specific user across key rotations without ever breaking the cryptographic layer.
+
+### Mesh relay linkability via root_identity tags
+
+When BLE mesh relays forward events for non-nearby recipients, those events include `root_identity` tags that link device subkeys to root identities. A BLE scanner that captures relayed mesh traffic can observe these tags and build a partial map of which root identities have events transiting through a physical area — even if the relay device itself uses ephemeral keys.
+
+This is distinct from the nearby-mode use case (where ephemeral keys hide identity). In the relay case, the relayed content carries identity metadata that the relay device cannot strip without breaking event verification.
+
+### The cryptographic vs. physical-layer gap
+
+Gozzip's BLE design achieves strong cryptographic unlinkability: ephemeral subkeys, Noise Protocol encryption, opaque payloads. At the protocol level, a scanning adversary learns nothing about identity or content. But at the physical layer, BLE radio characteristics provide a parallel identification channel that the protocol cannot control.
+
+This gap between cryptographic unlinkability and physical-layer unlinkability is fundamental to any radio-based communication. It is not a Gozzip design flaw — it is a property of BLE hardware.
+
+### Mitigation
+
+**BLE is a convenience feature, not a privacy feature.** Users facing adversaries with SDR capabilities or dense BLE scanner networks should disable BLE entirely and rely on relay-mediated communication. The protocol should document this clearly in user-facing privacy guidance: BLE mesh enables local communication without internet infrastructure, but it exposes a physical-layer surveillance surface that cryptographic measures cannot eliminate.
+
+## ISP/Network-Level Traffic Analysis
+
+The adversary profiles above describe what an ISP sees in terms of connection endpoints. This section addresses a more specific concern: whether an ISP or network-level observer can distinguish Gozzip traffic from vanilla Nostr traffic, and what this distinction reveals.
+
+### Gozzip-specific traffic patterns
+
+A standard Nostr client connects to relays over WebSocket, publishes events, and fetches subscriptions. Gozzip clients do the same — but they also produce traffic patterns that are distinguishable from vanilla Nostr:
+
+- **Persistent WebSocket connections to pact partners.** A vanilla Nostr client maintains connections to a handful of relays. A Gozzip Keeper maintains persistent connections for pact coordination — NIP-46 store/fetch operations, challenge-response liveness checks, and gossip forwarding. The connection count, duration, and regularity differ from casual Nostr usage.
+
+- **Challenge-response messages at regular intervals.** Pact liveness verification produces periodic small messages at predictable intervals. A network observer cannot read the content (encrypted WebSocket), but the timing pattern — small messages every N minutes across multiple relay connections — is distinctive.
+
+- **Gossip forwarding fan-out.** When a Gozzip node receives a gossip event, it forwards to WoT-bounded peers through relays. This creates a characteristic fan-out pattern: one inbound event followed by multiple outbound events to different relay connections within a short window. Vanilla Nostr clients do not exhibit this relay pattern.
+
+- **NAT hole-punch signaling.** The relay-mediated exchange of connection parameters for direct peer connections produces a recognizable handshake pattern: a sequence of small encrypted messages between two clients through a relay, followed by a new direct UDP or TCP connection to a previously-uncontacted IP.
+
+### What this distinction reveals
+
+An ISP or network observer who can identify Gozzip traffic patterns learns:
+
+- **This user runs Gozzip, not just Nostr.** This is a meaningful distinction in environments where Gozzip's censorship-resistance features draw specific attention.
+- **Approximate pact partner count.** The number of persistent relay connections and challenge-response patterns suggests the number of active pacts.
+- **Activity level.** Gossip fan-out frequency indicates how active the user is in the network.
+
+The observer still cannot see content, identities, or social graph — but the traffic fingerprint itself may be sufficient for targeting in hostile network environments.
+
+### Mitigation
+
+- **Tor or VPN.** Users in hostile network environments should route all Gozzip traffic through Tor or a trusted VPN. This hides the traffic patterns from the local ISP, though exit node operators or VPN providers inherit the same visibility.
+- **Pluggable transports (future consideration).** The protocol could support pluggable transports similar to Tor's obfs4, wrapping Gozzip WebSocket traffic in innocuous-looking protocols (HTTPS to common domains, WebRTC video calls, etc.). This is not currently implemented but would address traffic fingerprinting at the transport layer.
+- **Traffic padding (future consideration).** Fixed-rate padding on relay connections could mask challenge-response timing and fan-out patterns. This trades bandwidth for traffic analysis resistance.
+
+### Acknowledged limitation
+
+This is an acknowledged limitation, not a design flaw. Gozzip prioritizes usability and censorship resistance over traffic analysis resistance. Adding Tor-level traffic analysis protection to every connection would impose latency and complexity costs that conflict with the protocol's goal of being a practical social networking tool. The protocol recommends — but does not require — that users in hostile environments layer appropriate network privacy tools beneath Gozzip.
+
 ## Summary table
 
 | Adversary | Sees IP? | Sees social graph? | Sees content? | Sees pact topology? |
