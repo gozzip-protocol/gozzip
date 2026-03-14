@@ -1,4 +1,5 @@
 pub mod barabasi_albert;
+pub mod lfr;
 pub mod watts_strogatz;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -285,6 +286,16 @@ pub fn build_graph(config: &SimConfig, rng: &mut ChaCha8Rng) -> Graph {
             config.graph.nodes,
             config.graph.ws_neighbors,
             config.graph.ws_rewire_prob,
+            rng,
+        ),
+        "lfr" => lfr::generate(
+            config.graph.nodes,
+            config.graph.lfr_tau1,
+            config.graph.lfr_tau2,
+            config.graph.lfr_mu,
+            config.graph.lfr_avg_degree,
+            config.graph.lfr_min_community,
+            config.graph.lfr_max_community,
             rng,
         ),
         other => panic!("Unknown graph model: {}", other),
