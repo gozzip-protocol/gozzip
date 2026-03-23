@@ -147,6 +147,8 @@ Symmetric NAT (where hole punching always fails) falls back to relay-mediated co
 
 **Why relays benefit from offering this:** Every successful hole punch removes a pair's ongoing traffic from the relay. For infrastructure relays serving thousands of users, this is significant bandwidth savings. The relay invests 500 bytes of signaling and offloads potentially megabytes of daily pact traffic.
 
+> **Note (ADR 011):** With the iroh transport integration, NAT traversal and hole punching are handled natively by iroh's QUIC stack. iroh uses relay servers for initial connection establishment and automatic hole-punching to upgrade to direct peer-to-peer connections. The relay-coordinated signaling described above is superseded by iroh's built-in mechanism, though the same principles apply. See [ADR 011](../decisions/011-iroh-transport-integration.md) and [iroh Network Architecture](../architecture/iroh-network.md).
+
 ---
 
 ## Relay Types

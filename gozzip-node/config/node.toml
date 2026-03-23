@@ -1,0 +1,32 @@
+# Gozzip Node Configuration
+# See docs/architecture/iroh-network.md for architecture details.
+
+[protocol]
+pacts_default = 20
+pacts_standby = 3
+volume_tolerance = 0.30
+ttl = 3
+gossip_fanout = 8
+challenge_freq_per_day = 1
+min_account_age_days = 7
+default_storage_capacity_mb = 1024
+
+[iroh]
+# Bootstrap peers to connect to on startup.
+# Format: base32-encoded public key
+# bootstrap_peers = ["..."]
+
+# Path to Ed25519 identity key file (generated if missing).
+key_file = "~/.gozzip/identity.key"
+
+# Port for iroh endpoint. 0 = auto-select.
+bind_port = 0
+
+# Gossip topic version string (determines TopicId).
+gossip_topic = "gozzip-v1"
+
+# Maximum concurrent peer connections.
+max_connections = 256
+
+[karma]
+enabled = false

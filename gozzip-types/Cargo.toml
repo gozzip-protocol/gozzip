@@ -1,0 +1,10 @@
+[package]
+name = "gozzip-types"
+version = "0.1.0"
+edition = "2021"
+description = "Shared wire-format types for the Gozzip protocol"
+
+[dependencies]
+serde = { workspace = true }
+serde-big-array = "0.5"
+postcard = { workspace = true }

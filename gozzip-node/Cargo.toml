@@ -1,0 +1,30 @@
+[package]
+name = "gozzip-node"
+version = "0.1.0"
+edition = "2021"
+description = "Gozzip network node with iroh P2P transport"
+
+[[bin]]
+name = "gozzip-node"
+path = "src/main.rs"
+
+[dependencies]
+gozzip-types = { path = "../gozzip-types" }
+tokio = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = "0.8"
+iroh = { workspace = true }
+iroh-gossip = { workspace = true }
+postcard = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+lru = "0.12"
+rand = "0.8"
+getrandom = "0.3"
+bytes = "1"
+futures-lite = "2"

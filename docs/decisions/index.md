@@ -14,3 +14,5 @@ Format: Context → Decision → Consequences.
 - [008 — Protocol Hardening](008-protocol-hardening.md)
 - [009 — Incentive Model](009-incentive-model.md)
 - [010 — Bitchat Integration](010-bitchat-integration.md)
+- [011 — Iroh Transport Integration](011-iroh-transport-integration.md)
+- [012 — xx Network Protocol Evaluation](012-xx-network-evaluation.md)

@@ -191,7 +191,7 @@ With the extension running as a light node, the web story becomes:
 |-----------|-----|---------|
 | Persistent background connections | **Impossible** | ForegroundService (with notification) |
 | Background processing | BGAppRefreshTask: ~30s, unpredictable | WorkManager: restricted by Doze |
-| BLE mesh (FIPS Tier 0) | CoreBluetooth (limited background) | Full access |
+| BLE mesh (iroh Tier 0) | CoreBluetooth (limited background) | Full access |
 | Push notifications | APNS required | FCM recommended |
 
 **Critical fact:** Briar (pure P2P messenger) has no iOS version and never will — iOS kills background Bluetooth/network. Gozzip must not repeat this mistake.
@@ -417,9 +417,9 @@ But the protocol **works without one.** A mobile-only user with no proxy, no des
 
 The relay-as-mailbox model works today with existing infrastructure. But it still depends on centralized servers with stable addresses. Several paths could reduce or eliminate this dependency over time — though none are proven at scale and all carry significant uncertainty.
 
-#### FIPS Mesh: Identity-Routed Transport
+#### iroh Mesh: Identity-Routed Transport
 
-FIPS (Free Internetworking Peering System) decouples identity from transport address entirely. A user's root pubkey becomes their network address. The mesh routes messages by pubkey, not IP — meaning dynamic IPs, NAT, and address changes become irrelevant at the protocol level.
+iroh (peer-to-peer QUIC transport) decouples identity from transport address entirely. A user's root pubkey becomes their network address. The mesh routes messages by pubkey, not IP — meaning dynamic IPs, NAT, and address changes become irrelevant at the protocol level.
 
 **What it would enable:**
 - Direct phone-to-phone message routing without relays
@@ -428,12 +428,12 @@ FIPS (Free Internetworking Peering System) decouples identity from transport add
 - Store-and-forward queuing across mesh peers
 
 **What's uncertain:**
-- FIPS mesh over internet transport requires bootstrapping — you still need to find initial peers somehow. This likely means relay-like bootstrap nodes.
+- iroh mesh over internet transport requires bootstrapping — you still need to find initial peers somehow. This likely means relay-like bootstrap nodes.
 - Mesh routing over the open internet (UDP hole punching, STUN coordination) is battle-tested in some contexts (WebRTC, BitTorrent) but unproven for social protocol traffic at scale.
 - The spanning tree routing model works well in simulations but hasn't been validated with millions of intermittent mobile nodes.
 - Power consumption of mesh participation on mobile is unknown — maintaining mesh routing state may conflict with OS background restrictions.
 
-#### BLE Mesh: Offline-First Local Networks (FIPS Tier 0)
+#### BLE Mesh: Offline-First Local Networks (iroh Tier 0)
 
 Bluetooth Low Energy mesh enables phone-to-phone communication without any internet connection. The Bitchat integration design specifies:
 - BLE range: ~100m, up to 7 mesh hops (practical maximum is 3-4 hops; the primary use case is 1-hop direct exchange)
@@ -488,12 +488,12 @@ An alternative approach to eventual consistency: instead of challenge-response p
 | Approach | Eliminates Relay? | Maturity | Timeline |
 |----------|------------------|----------|----------|
 | Relay as mailbox (current) | No — shifts from custody to delivery | Ready now | Phase 1 |
-| FIPS mesh (internet transport) | Partially — still needs bootstrap | Designed, unproven | 2-3 years |
-| BLE mesh (FIPS Tier 0) | Yes, for local communication | Designed, unproven | 1-2 years |
+| iroh mesh (internet transport) | Partially — still needs bootstrap | Designed, unproven | 2-3 years |
+| BLE mesh (iroh Tier 0) | Yes, for local communication | Designed, unproven | 1-2 years |
 | WebRTC direct | Partially — only during overlap | Mature tech, untested in this context | 6-12 months |
 | Local-first / CRDTs | Transport-agnostic | Research stage | Unknown |
 
-**The practical path:** Ship with relay-as-mailbox. It works today, uses existing Nostr infrastructure, and is strictly better than relay-as-storage. Layer in BLE mesh for local/offline scenarios. Explore FIPS mesh for internet-scale relay independence as the protocol matures. Don't promise relay elimination until it's proven.
+**The practical path:** Ship with relay-as-mailbox. It works today, uses existing Nostr infrastructure, and is strictly better than relay-as-storage. Layer in BLE mesh for local/offline scenarios. Explore iroh mesh for internet-scale relay independence as the protocol matures. Don't promise relay elimination until it's proven.
 
 ### Device-Aware Protocol: Automatic Full Node Detection
 
@@ -902,17 +902,17 @@ Relays serve as stable rendezvous points when direct peer discovery fails:
 
 Relays are the "DNS of last resort" — always available, rarely needed.
 
-#### Layer 4: FIPS Transport Independence (Future)
+#### Layer 4: iroh Transport Layer
 
-FIPS decouples identity from transport address entirely:
+iroh decouples identity from transport address entirely:
 
-- **A user's root pubkey IS their FIPS network address** — no IP needed
-- FIPS Mesh Protocol routes datagrams by pubkey, not IP
+- **A user's root pubkey IS their iroh network address** — no IP needed
+- iroh mesh protocol routes datagrams by pubkey, not IP
 - Spanning tree routing + bloom filter reachability handles topology changes
 - Works over UDP, BLE, radio, Tor — any transport
 - Sessions survive route changes (Noise XK binds to identity, not address)
 
-**With FIPS, the dynamic IP problem disappears entirely.** You address messages to a pubkey; the mesh figures out how to deliver them.
+**With iroh, the dynamic IP problem disappears entirely.** You address messages to a pubkey; the mesh figures out how to deliver them.
 
 ### Discovery by Platform
 
@@ -943,8 +943,8 @@ The relay's role is minimal: store events and serve subscriptions — exactly wh
 **Mostly unnecessary** in the relay-mediated model — both sides connect outbound to relays, sidestepping NAT entirely. For direct connections when desired:
 
 1. **WebSocket via relay** — the default, works always
-2. **FIPS hole punching** (future) — UDP hole punching coordinated via mutual peers
-3. **BLE direct** (mobile, FIPS Tier 0) — Bluetooth discovery via geohash-tagged ephemeral keys, no IP needed
+2. **iroh hole punching** (future) — UDP hole punching coordinated via mutual peers
+3. **BLE direct** (mobile, iroh Tier 0) — Bluetooth discovery via geohash-tagged ephemeral keys, no IP needed
 4. **WebRTC** (potential) — STUN/TURN for browser-to-mobile direct connections when both are online
 
 ### Address Update Protocol
@@ -972,7 +972,7 @@ For full nodes/desktops with incoming connections:
 | Feed model (3-tier) | Yes | Yes | Yes | Yes |
 | Event publishing | Yes | Yes | Yes | Yes |
 | NIP-07 signing | N/A | Yes (primary use) | N/A | N/A |
-| BLE mesh (FIPS) | Limited | No | Yes (Android > iOS) | Yes |
+| BLE mesh (iroh) | Limited | No | Yes (Android > iOS) | Yes |
 | Push notifications | N/A | N/A | Yes (APNS/FCM) | No |
 | Offline operation | Yes (desktop on) | No (browser must run) | Via proxy | No |
 
@@ -1032,7 +1032,7 @@ Compilation targets:
 | Chrome changes MV3 service worker lifecycle | Extension can't maintain pact obligations | Offscreen document fallback; Firefox event pages as backup platform |
 | iOS tightens background restrictions further | Mobile-to-mobile pact sync degrades | Relay-mediated async model already handles this; proxy optional |
 | WASM instantiation too slow on worker restart | Gossip latency spikes after idle | Keep WASM binary small (<1 MB); cache compiled module in IndexedDB |
-| Relay dependency in mobile-first network | 90%+ mobile means relays become critical path for pact messages | Multiple relay redundancy; relay is dumb pipe (no custody); FIPS eliminates relay need long-term |
+| Relay dependency in mobile-first network | 90%+ mobile means relays become critical path for pact messages | Multiple relay redundancy; relay is dumb pipe (no custody); iroh eliminates relay need long-term |
 
 ### Medium Risk
 
@@ -1090,7 +1090,7 @@ Headless Rust daemon (same `gozzip-core`) for VPS deployment:
 UniFFI bindings from `gozzip-core` → Kotlin. Jetpack Compose UI:
 - Light node with ForegroundService for background connectivity
 - Syncs with Pact Proxy when backgrounded
-- BLE mesh support (FIPS Tier 0)
+- BLE mesh support (iroh Tier 0)
 - FCM push notifications
 
 ### Phase 5: iOS App
