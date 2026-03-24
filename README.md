@@ -15,7 +15,7 @@ Decentralized social protocols still depend on servers that control what gets st
 - **Storage pacts** — bilateral agreements where WoT peers store each other's events, enforced by challenge-response verification
 - **Tiered retrieval** — reads cascade from local pact storage (92% of reads) through gossip (2.2%) to relay fallback (4.7%), achieving 98.8% success without relay dependency
 - **WoT-filtered gossip** — information propagates through trust boundaries, not broadcast channels
-- **Transport independence** — via FIPS integration, the protocol operates over IP, BLE mesh, radio, Tor, or any other transport
+- **Transport independence** — via [iroh](https://docs.iroh.computer/) integration, the protocol operates over QUIC with peer-to-peer NAT traversal, with future paths to BLE mesh, radio, and Tor via iroh's multipath QUIC transport
 
 The relay doesn't die — it becomes an optional discovery layer and performance accelerator instead of a gatekeeper.
 
@@ -23,6 +23,10 @@ The relay doesn't die — it becomes an optional discovery layer and performance
 
 ```
 gozzip/
+├── gozzip-types/      Shared wire-format types (Rust library crate)
+├── gozzip-node/       Real network node using iroh P2P transport
+│   ├── discovery.rs — NIP-05 identity verification
+│   └── net/blobs.rs — Content-addressed blob storage (iroh-blobs)
 ├── simulator/          Rust discrete-event network simulator
 │   ├── src/            Simulation engine (async actor model)
 │   └── config/         TOML configuration profiles
@@ -45,7 +49,7 @@ The primary technical document is the protocol paper:
 - **Markdown**: [`docs/papers/gossip-storage-retrieval.md`](docs/papers/gossip-storage-retrieval.md)
 - **LaTeX/PDF**: [`docs/papers/gossip-storage-retrieval.pdf`](docs/papers/gossip-storage-retrieval.pdf)
 
-Covers the full protocol: storage pacts, tiered retrieval, WoT-filtered gossip, network-theoretic foundations, FIPS transport integration, comparison with Nostr/Mastodon, simulation results at 5,000 nodes, and a phased implementation roadmap.
+Covers the full protocol: storage pacts, tiered retrieval, WoT-filtered gossip, network-theoretic foundations, iroh transport integration, comparison with Nostr/Mastodon, simulation results at 5,000 nodes, and a phased implementation roadmap.
 
 ### Design Documents
 
@@ -78,7 +82,20 @@ The simulator also supports stress testing: Sybil attacks, network partitions, c
 
 ## Current Status
 
-The protocol is validated by simulation (100–5,000 nodes). No production implementation exists yet. The architecture is designed for a gradual transition from today's relay model — storage decentralization first (invisible, background), retrieval decentralization later — with each phase delivering value independently.
+The protocol is validated by simulation (100-5,000 nodes). A real network node (`gozzip-node`) using iroh for peer-to-peer transport is under development. The architecture is designed for a gradual transition from today's relay model — storage decentralization first (invisible, background), retrieval decentralization later — with each phase delivering value independently.
+
+### Features
+
+- **Gossip privacy**: Batch-and-shuffle forwarding breaks temporal correlation in message propagation
+- **NIP-44 encrypted DMs** (planned): Point-to-point encrypted direct messages with NIP-17 gift wrapping
+- **NIP-28 channels** (planned): Group conversations over gossip topics with NIP-10 threading
+- **NIP-05 identity verification**: DNS-based identity claims linking Nostr pubkeys to human-readable identifiers
+- **iroh-blobs content addressing** (planned): Large content stored as BLAKE3-addressed blobs with chunked transfer
+- **Post-quantum ready type system**: Wire format types support classical and PQ algorithm variants for future migration
+
+### Recent
+
+- **xx.network evaluation** (ADR 012): Evaluated cMix mixnet protocol for traffic analysis resistance. Adopted gossip-native privacy enhancements (batch-and-shuffle, partial HyParView rotation) instead of full mixnet infrastructure.
 
 ## License
 
