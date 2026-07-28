@@ -159,15 +159,15 @@ Client behavior adapts with pact count: bootstrap phase (0–5, relay-primary), 
 ```
 Bob wants Alice's events (Alice's devices are offline)
   │
-  ├─ Publishes kind 10057 (data request):
-  │    bp = H(Alice's pubkey || YYYY-MM-DD)  ← rotating request token (daily-rotating
-  │         lookup key; prevents casual cross-day linkage but is reversible by any
-  │         party knowing Alice's public key — not a cryptographic blinding scheme)
-  │    since = last known checkpoint
+  ├─ Bob sends kind 10057 (data request), NIP-44-encrypted to a chosen
+  │  storage peer, routed by that peer's pubkey via iroh:
+  │    target = Alice's pubkey
+  │    since  = last known checkpoint
+  │  (signed and routed by pubkey; privacy comes from asking WoT
+  │   pact partners, not relays)
   │
-  ├─ Alice's storage peers (other users' clients) are subscribed via relay
-  │   ├─ Each peer computes H(stored_pubkeys || date) and matches against bp tag
-  │   └─ Matching peer responds privately with kind 10058 (data offer)
+  ├─ The storage peer decrypts, checks it holds Alice's events
+  │   └─ Responds privately with kind 10058 (data offer)
   │        relay = connection endpoint
   │
   ├─ Bob connects to responding peer
@@ -179,43 +179,28 @@ Bob wants Alice's events (Alice's devices are offline)
   └─ Fallback: try relays if no storage peers respond
 ```
 
-## Gossip Discovery Flow
+## Retrieval Flow (three-tier)
 
-All gossip forwarding is client-side — standard Nostr relays store and serve events, clients decide what to forward. No relay modifications required.
+Retrieval walks three tiers in priority order. See [ADR 017](../decisions/017-three-tier-retrieval.md) and [Storage > Event Retrieval](../architecture/storage.md#event-retrieval).
 
 ```
 Bob wants Alice's events
   │
-  ├─ Layer 0: BLE mesh (if enabled)
-  │   ├─ Check if any nearby devices have Alice's events via BLE
-  │   ├─ Noise Protocol encrypted session between mesh peers
-  │   ├─ Multi-hop relay up to 7 hops through intermediate devices (practical maximum is 3-4 hops; the primary use case is 1-hop direct exchange)
-  │   ├─ Interop with bitchat mesh network
-  │   └─ If BLE responds → done
+  ├─ Tier 1: Local
+  │   ├─ Check Bob's own pact storage and read-cache
+  │   └─ If already held → done (zero network cost)
   │
-  ├─ Layer 1: Check cached endpoints
-  │   ├─ Bob has kind 10059 from Alice (NIP-59 gift wrapped, only Bob can decrypt)
-  │   ├─ Connect directly to cached peers
-  │   └─ If cached endpoints respond → done
+  ├─ Tier 2: Partner query
+  │   ├─ Send kind 10057, NIP-44-encrypted, to one of Alice's pact
+  │   │  partners — routed by pubkey via iroh
+  │   ├─ Partner decrypts, checks it holds Alice's events
+  │   └─ If a partner responds (kind 10058) → done
   │
-  ├─ Layer 2: Gossip (hardened — see ADR 008)
-  │   ├─ Send kind 10057 to directly connected peers (TTL=3)
-  │   │   └─ Include request_id tag for deduplication
-  │   ├─ Each peer receiving a request:
-  │   │   ├─ Check request_id against LRU cache → drop if duplicate
-  │   │   ├─ Check source pubkey rate limit (50 req/s) → drop if exceeded
-  │   │   ├─ Check if source is within 2-hop WoT → serve locally but don't forward if not
-  │   │   ├─ Check if they can respond (have the data)
-  │   │   └─ If not, decrement TTL and forward to peers
-  │   │       └─ Priority: pact partners first, then WoT, then extended WoT (ADR 009)
-  │   ├─ Reaches ~8,000 nodes in a 20-peer network (20^3)
-  │   ├─ Responses route back along the same path
-  │   └─ If gossip responds → done
-  │
-  └─ Layer 3: Relay fallback
-      ├─ Traditional DVM broadcast via relay
-      └─ Existing kind 10057/10058 flow
+  └─ Tier 3: Relay
+      └─ Traditional relay query as fallback (existing 10057/10058 flow)
 ```
+
+**Optional gossip extension:** WoT-bounded forwarding of kind 10057 (client-side, hardened per [ADR 008](../decisions/008-protocol-hardening.md): request_id dedup, per-source rate limits, 2-hop forwarding boundary, TTL=3) is an *optional* censorship-resistance layer — not a required tier. BLE mesh is deferred (see [ADR 011](../decisions/011-iroh-transport-integration.md)).
 
 ## Storage Challenge-Response
 
@@ -282,11 +267,13 @@ Bob receives events from Alice's device
 ```
 Setup: User designates recovery contacts
   │
-  ├─ Publishes kind 10060 for each recovery contact:
-  │    d = recovery_contact_root_pubkey
-  │    threshold = 3, total = 5
-  │    content = NIP-44 encrypted instructions
+  ├─ Publishes kind 10060 for each recovery contact (hardened format):
+  │    d = H(recovery_contact_pubkey || owner_pubkey)   ← hashed, not plaintext
+  │    content = NIP-44 encrypted { threshold: 3, total: 5, instructions }
   │    signed by root key
+  │    (threshold/total live ONLY inside the encrypted content, never in
+  │     public tags — a public d or threshold would leak the whole
+  │     recovery set; see messages.md and ADR 008)
   │
   └─ Each contact receives and stores their 10060 (encrypted to them)
 
@@ -336,6 +323,8 @@ Bob fetches Alice's events from storage peer S1
 - See [Storage > Cascading Read-Caches](../architecture/storage.md#cascading-read-caches)
 
 ## Nearby Discovery Flow
+
+> Nearby mode's BLE transport is deferred (see [ADR 011](../decisions/011-iroh-transport-integration.md)); the local-gossip path applies today.
 
 ```
 User activates nearby mode (inspired by bitchat — https://github.com/permissionlesstech/bitchat)

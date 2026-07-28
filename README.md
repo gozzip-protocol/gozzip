@@ -12,12 +12,12 @@ Decentralized social protocols still depend on servers that control what gets st
 
 ## The Approach
 
-- **Storage pacts** — bilateral agreements where WoT peers store each other's events, enforced by challenge-response verification
-- **Tiered retrieval** — reads cascade from local pact storage (92% of reads) through gossip (2.2%) to relay fallback (4.7%), achieving 98.8% success without relay dependency
-- **WoT-filtered gossip** — information propagates through trust boundaries, not broadcast channels
+- **Storage pacts** — bilateral agreements where WoT peers store each other's events, verified by data-availability challenges (capped-asymmetric, renewal-by-default)
+- **Tiered retrieval** — reads cascade through three tiers: local pact storage, a direct encrypted query to the author's pact partners, then relay fallback — keeping most reads local and relay dependency sharply reduced, not eliminated
+- **WoT-filtered gossip** *(optional extension)* — an opt-in censorship-resistance path where information propagates through trust boundaries rather than broadcast channels
 - **Transport independence** — via [iroh](https://docs.iroh.computer/) integration, the protocol operates over QUIC with peer-to-peer NAT traversal, with future paths to BLE mesh, radio, and Tor via iroh's multipath QUIC transport
 
-The relay doesn't die — it becomes an optional discovery layer and performance accelerator instead of a gatekeeper.
+The relay doesn't die — its role shrinks to discovery, bootstrap, mobile-to-mobile mailbox, and fallback: reduced custody, not optional infrastructure.
 
 ## Project Structure
 
@@ -37,7 +37,8 @@ gozzip/
 │   ├── protocol/       Wire format, messages, identity
 │   ├── actors/         Participant roles (users, relays)
 │   ├── decisions/      Architecture Decision Records (ADRs)
-│   ├── design/         Design documents (incentives, risk, simulator)
+│   ├── design/         Design documents (incentives, privacy, moderation, keys)
+│   ├── future/         Deferred post-v1 explorations (see ADR 019)
 │   └── glossary.md     Terminology and persona definitions
 └── CLAUDE.md           Development workflow instructions
 ```
@@ -49,7 +50,7 @@ The primary technical document is the protocol paper:
 - **Markdown**: [`docs/papers/gossip-storage-retrieval.md`](docs/papers/gossip-storage-retrieval.md)
 - **LaTeX/PDF**: [`docs/papers/gossip-storage-retrieval.pdf`](docs/papers/gossip-storage-retrieval.pdf)
 
-Covers the full protocol: storage pacts, tiered retrieval, WoT-filtered gossip, network-theoretic foundations, iroh transport integration, comparison with Nostr/Mastodon, simulation results at 5,000 nodes, and a phased implementation roadmap.
+Covers the full protocol: storage pacts, three-tier retrieval, WoT-filtered gossip (optional), network-theoretic foundations, iroh transport integration, comparison with Nostr/Mastodon, and a phased implementation roadmap. (Empirical results live in the [plausibility analysis](docs/design/plausibility-analysis.md) and [simulation model](docs/tests/simulation-model.md), not the paper.)
 
 ### Design Documents
 
@@ -61,32 +62,22 @@ The `docs/` directory contains working documentation developed alongside the pro
 
 ### Simulator
 
-The [`simulator/`](simulator/) directory contains a Rust discrete-event network simulator that validates the protocol's claims. It models thousands of nodes as independent async actors — following each other, publishing content, forming pacts, gossiping, and reading posts — with realistic latency and uptime distributions.
+The [`simulator/`](simulator/) directory contains a Rust discrete-event network simulator that models thousands of nodes as independent async actors — following each other, publishing content, forming pacts, gossiping, and reading posts — with realistic latency and uptime distributions. It exercises the protocol's analytical model and stresses it under adversarial conditions: Sybil attacks, network partitions, churn storms, and viral content spikes.
 
 ```bash
 cd simulator && cargo build --release
 ./target/release/gozzip-sim --nodes 5000 --ba-edges 50 validate
 ```
 
-Key results from a 5,000-node, 30-day simulation:
-
-| Metric | Result |
-|--------|--------|
-| Overall retrieval success | 98.8% |
-| Reads from local pact storage | 92.0% |
-| Relay fallback usage | 4.7% |
-| Relay dependency at 14+ day maturity | 0.2% |
-| Mean pacts per node | 18.69 / 20 target |
-
-The simulator also supports stress testing: Sybil attacks, network partitions, churn storms, and viral content spikes. See [`simulator/README.md`](simulator/README.md) for full documentation.
+The simulator is being rebuilt against the current protocol (capped pacts, presence-aware scoring, renewal-by-default, three-tier retrieval); empirical figures will follow that rebuild. See [`simulator/README.md`](simulator/README.md) for documentation and the [plausibility analysis](docs/design/plausibility-analysis.md) for the analytical model.
 
 ## Current Status
 
-The protocol is validated by simulation (100-5,000 nodes). A real network node (`gozzip-node`) using iroh for peer-to-peer transport is under development. The architecture is designed for a gradual transition from today's relay model — storage decentralization first (invisible, background), retrieval decentralization later — with each phase delivering value independently.
+The protocol's design is complete and its analytical model is documented; the simulator is being rebuilt to validate it against the current mechanisms. A real network node (`gozzip-node`) using iroh for peer-to-peer transport is under development. The architecture is designed for a gradual transition from today's relay model — storage decentralization first (invisible, background), retrieval decentralization later — with each phase delivering value independently.
 
 ### Features
 
-- **Gossip privacy**: Batch-and-shuffle forwarding breaks temporal correlation in message propagation
+- **Gossip privacy** (optional extension): Batch-and-shuffle forwarding breaks temporal correlation in message propagation, where the WoT gossip tier is enabled
 - **NIP-44 encrypted DMs** (planned): Point-to-point encrypted direct messages with NIP-17 gift wrapping
 - **NIP-28 channels** (planned): Group conversations over gossip topics with NIP-10 threading
 - **NIP-05 identity verification**: DNS-based identity claims linking Nostr pubkeys to human-readable identifiers

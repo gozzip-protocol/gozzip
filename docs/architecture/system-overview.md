@@ -7,7 +7,7 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 - **Root identity** — secp256k1 keypair, same as Nostr. The user's permanent identity.
 - **Device subkeys** — per-device keypairs, plus derived DM and governance keys. Authorized by root key via kind 10050.
 - **Relays** — store and forward events. Standard Nostr relays work without modification. Optimized relays can optionally resolve device → root identity for faster queries.
-- **Clients** — user-facing apps (mobile, desktop, web, browser extension). Sign events with device keys. Handle all protocol intelligence: gossip forwarding, rotating request token matching, WoT filtering, device resolution.
+- **Clients** — user-facing apps (mobile, desktop, web, browser extension). Sign events with device keys. Handle all protocol intelligence: WoT filtering, device resolution, encrypted partner queries, and the optional gossip extension.
 - **Storage peers** — WoT peers that hold your recent events via reciprocal pacts. Serve your data when your devices are offline.
 - **Bridges** — connect to other networks (Nostr, ActivityPub, etc.)
 
@@ -20,12 +20,15 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 │  Kind 10050 (device delegation)                  │
 │  Kind 10051 (checkpoint)                         │
 │  Kind 10052 (conversation state)                 │
-│  Kind 10053-10059 (storage pacts + endpoint hints)│
+│  Kind 10053-10058 (storage pacts)                 │
 │  Kind 10060-10061 (social recovery)               │
+│  Kind 10062 (push token), 10063 (deletion)        │
+│  Kind 10064 (report), 10065 (suspension)          │
+│  Kind 10070 (iroh cross-key binding)              │
 │  root_identity tag convention                     │
 │  Client-side device→root resolution               │
 │  Follow-as-commitment indexing                   │
-│  BLE mesh transport (bitchat interop)              │
+│  iroh QUIC transport (identity-routed)            │
 ├──────────────────────────────────────────────────┤
 │                 Nostr Layer                       │
 │                                                   │
@@ -35,6 +38,8 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 │  secp256k1 keys, WebSocket transport             │
 └──────────────────────────────────────────────────┘
 ```
+
+Gozzip's custom kinds span **10050–10065 and 10070**; the canonical registry (including inherited NIP-17/NIP-28/NIP-44 kinds) lives in [protocol/messages.md](../protocol/messages.md). Peer addressing is handled by iroh (by pubkey), so no event kind advertises endpoints.
 
 ## Design Principles
 
@@ -56,8 +61,8 @@ High-level architecture of Gozzip — an open, censorship-resistant protocol for
 | `root_identity` tag | Convention, documented in NIP |
 | Client resolver | Client-side device ↔ root resolution (required). Relay oracle resolution (optional optimization). |
 | Kind 10053–10058 | Storage pact events (pact, challenge, request, offer, data request/offer) |
-| Kind 10059 | Storage endpoint hints for gossip discovery |
 | Kind 10060–10061 | Social recovery (recovery delegation + attestation) |
+| Kind 10062–10065, 10070 | Push token, deletion, content report, temporary suspension, iroh cross-key binding |
 | Key derivation | KDF for DM key, governance key from root |
 | Per-event chain | seq + prev_hash on device-signed events |
 | Reference library | `gozzip-core` — Rust library encapsulating pact management, gossip routing, WoT computation, challenge-response, and tiered retrieval. TypeScript bindings via WASM. Client developers import the library rather than re-implementing the protocol stack. This is a mandatory deliverable — without it, third-party client development is impractical given the protocol's 20+ client-side systems. |

@@ -35,13 +35,25 @@ The protocol's design mirrors human social dynamics. Each protocol role maps to 
 
 | Persona | Protocol Role | Human Equivalent |
 |---------|--------------|------------------|
-| **Keeper** | Full node pact partner | Inner circle — the friends who remember everything |
+| **Keeper** | Full node pact partner | The friends who remember everything (Dunbar's inner layers) |
 | **Witness** | Light node pact partner | Extended circle — they know what you've been up to recently |
 | **Guardian** | Bootstrap sponsor | Community patron — vouches for newcomers they don't personally know |
 | **Seedling** | Bootstrapping newcomer | New arrival — growing into the community with initial support |
 | **Herald** | Relay operator | Town crier — curates and distributes information beyond the local circle |
 
-For detailed definitions, see the [Glossary](../glossary.md). For the full structural analysis, see the [protocol paper](../papers/gossip-storage-retrieval.md) §2.
+### How a person grows into the network
+
+The protocol is the community-formation story, made executable. A single user's arc runs along three ladders that turn together:
+
+1. **Who you are to others (personas).** You arrive as a **Seedling**. Nobody in the network can vouch for you yet, so a **Guardian** — an established member volunteering one slot of storage — sponsors you, the way a neighbor co-signs a lease for someone they barely know. As you follow people and they follow back, your friends become your **Keepers** (always-on, they remember your whole history) and **Witnesses** (they hold your recent events). Beyond your circle, **Heralds** — relay operators — carry your reach to strangers. In time you become someone else's Keeper, and eventually a Guardian yourself.
+
+2. **How you communicate (phases).** You start **relay-dependent** — the town square is where everything happens (**Bootstrap**, 0–5 pacts). As pacts accumulate, more of your data lives on your friends' devices and less on relays (**Hybrid**, 5–15). Once your social graph is dense enough to be your own infrastructure, relays shrink to discovery and bootstrap (**Sovereign**, 15+). Relay dependency decays as the graph grows — it is never a gate, always a gradient.
+
+3. **How others reach you (feed tiers).** Strangers don't start in your inner circle; they earn their way in. An unknown author first appears in your **Horizon** (weak ties, relay-discovered). If people you already trust interact with them, they rise into your **Orbit**. Sustained mutual interaction promotes them to your **Inner Circle** — the mutual follows whose content is pact-guaranteed and always available. Content is promoted along this ladder by observed behavior, the protocol's version of earning a place in the community.
+
+The three ladders are the same movement seen from three angles, and one line ties them together: **Bootstrap-phase users see mostly Horizon (relays), Hybrid users watch their Orbit grow, and Sovereign users see mostly their Inner Circle.** The engine that keeps all of it turning is generosity paid forward — today's Seedling, remembered and vouched for, becomes tomorrow's Guardian. Reciprocal pacts are reciprocal friendship; reliability is reputation earned through behavior; guardianship is patronage; the whole thing is a village writing itself into a protocol.
+
+For canonical definitions of every term, see the [Glossary](../glossary.md). For the full structural analysis — Dunbar circles, reciprocity as infrastructure, gossip as curated propagation — see the [protocol paper](../papers/gossip-storage-retrieval.md) §2.
 
 ## Why Not Just Nostr?
 
@@ -74,7 +86,7 @@ The pact layer is Gozzip's long-term value proposition, but it requires network 
 
 **Multi-device identity** — Root key + device delegation (kind 10050) is a pure improvement over Nostr's shared-key model. Users run multiple devices without copying private keys between them. Device compromise is contained — revoke the device, keep the identity. This works from the first event.
 
-**Encrypted DM threading with key separation** — DM encryption targets a dedicated DM key (derived from root, rotated every 90 days) rather than the root key itself. Per-device DM capability flags limit which devices can read messages. This is better DM security than any Nostr client offers from day one — no pacts required.
+**Encrypted DM threading with key separation** — DM encryption targets a dedicated DM key (derived from its own independent seed, rotated every 90 days) rather than the root key itself. Per-device DM capability flags limit which devices can read messages. This adds DM key separation and per-device capability flags on top of NIP-44 — a meaningful improvement over sharing the identity key across devices, available from day one. (It is periodic key rotation, not forward secrecy — see [ADR 018](../decisions/018-honest-security-and-relay-framing.md).)
 
 **Social recovery** — Users can designate recovery contacts (kind 10060) immediately after creating their identity. N-of-M threshold recovery with a 7-day timelock works as soon as the recovery contacts are published. No pact network needed.
 
@@ -88,6 +100,6 @@ The pact layer is Gozzip's long-term value proposition, but it requires network 
 
 ## Reference Library
 
-A reference library (`gozzip-core`) is a mandatory deliverable. Gozzip's client-side complexity — pact negotiation, challenge-response, WoT graph computation, gossip forwarding, rotating request token matching, device resolution, tiered retrieval cascade — is 10-25x greater than a basic Nostr client. Without a shared library, every client must re-implement 20+ interacting systems from prose specifications.
+A reference library (`gozzip-core`) is a mandatory deliverable. Gozzip's client-side complexity — pact negotiation, challenge-response, WoT graph computation, device resolution, tiered retrieval — spans 20+ interacting systems, where a basic Nostr client implements a handful. Without a shared library, every client must re-implement those systems from prose specifications.
 
 The reference library encapsulates the protocol stack as a Rust crate with TypeScript/WASM bindings. Client developers import it and build UIs on top. This is how the Nostr ecosystem works in practice — `nostr-tools` (TypeScript) and `rust-nostr` (Rust) power the majority of clients. Gozzip follows the same pattern at a higher complexity level.

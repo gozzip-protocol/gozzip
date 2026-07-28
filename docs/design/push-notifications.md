@@ -41,7 +41,7 @@ A notification relay is a lightweight, dedicated service role with a single purp
 
 Mobile clients register with notification relays via NIP-46 relay-mediated encrypted sessions:
 
-1. Client discovers notification relay via kind 10067 advertisement (see below) or manual configuration
+1. Client discovers notification relay via manual configuration or WoT recommendation
 2. Client establishes NIP-46 session with the notification relay's pubkey
 3. Client publishes kind 10062 registration event encrypted to the notification relay
 4. Notification relay decrypts the registration, extracts the push token and filters
@@ -294,11 +294,11 @@ Sender --> Relay --> Pact Partner (full node) --> Notification Relay --> APNs/FC
 When a pact partner receives an event for their mobile peer:
 
 1. The pact partner checks if the event matches the mobile peer's notification preferences (exchanged during pact formation)
-2. If it matches, the pact partner publishes a lightweight "wake-up hint" (ephemeral kind 20062) to the notification relay
+2. If it matches, the pact partner signals the notification relay (which holds the push token) to send the push
 3. The notification relay sends the push
 4. The mobile device wakes and syncs directly from the pact partner
 
-This reduces the notification relay's role from "event monitor" to "push delivery service," minimizing its metadata exposure. The pact partner already knows about the events (it stores them), so no new metadata is leaked.
+This reduces the notification relay's role from "event monitor" to "push delivery service," minimizing its metadata exposure. The pact partner already knows about the events (it stores them), so no new metadata is leaked. (This flow is a post-v1 optimization; APNs/FCM via a notification relay watching the user's relays is the v1 default.)
 
 ### Reducing Notification Relay Dependency
 
@@ -362,62 +362,7 @@ Parameterized replaceable event -- one per notification relay. The user publishe
 - **Token rotation** -- when the OS rotates the push token, the client publishes a new 10062 with the updated token.
 - **Deregistration** -- publish a 10062 with empty content to deregister. The notification relay drops the subscription.
 
-### Kind 10067 -- Notification Relay Advertisement
-
-Replaceable event published by a notification relay operator to advertise the relay's capabilities and supported platforms.
-
-```json
-{
-  "kind": 10067,
-  "pubkey": "<notification_relay_operator_pubkey>",
-  "tags": [
-    ["d", "notification-relay"],
-    ["relay", "wss://notify.example.com"],
-    ["platform", "ios"],
-    ["platform", "android"],
-    ["platform", "unifiedpush"],
-    ["platform", "web"],
-    ["nip46_relay", "wss://relay.example.com"],
-    ["protocol_version", "1"]
-  ],
-  "content": "<optional: JSON with terms of service, capacity limits, contact info>",
-  "sig": "<signed by notification_relay_operator_key>"
-}
-```
-
-**Fields:**
-
-- **`relay` tag** -- WebSocket URL where the notification relay accepts NIP-46 sessions and kind 10062 registrations
-- **`platform` tags** -- which push platforms the relay supports (multiple tags allowed)
-- **`nip46_relay` tag** -- relay used for NIP-46 session establishment (may differ from the notification relay's own endpoint)
-- **`content`** -- optional metadata: capacity limits, terms, operator contact info
-- Clients discover notification relays by querying for kind 10067 events on well-known relays or via WoT recommendations
-
-### Kind 20062 -- Wake-Up Hint (Ephemeral)
-
-Ephemeral event published by a pact partner to signal the notification relay that a registered user has a pending event. Used in the pact-partner-as-notification-proxy flow.
-
-```json
-{
-  "kind": 20062,
-  "pubkey": "<pact_partner_device_pubkey>",
-  "tags": [
-    ["p", "<target_user_root_pubkey>"],
-    ["t", "dm"],
-    ["root_identity", "<pact_partner_root_pubkey>"]
-  ],
-  "content": "",
-  "sig": "<signed by pact partner device key>"
-}
-```
-
-**Fields:**
-
-- **Ephemeral** -- kind 20000-29999, not stored by relays
-- **`p` tag** -- the user who should receive the push notification
-- **`t` tag** -- the notification type (dm, mention, reply, reaction)
-- The notification relay verifies that the sender is a known pact partner of the target user (prevents arbitrary wake-up spam)
-- No content, no event ID, no sender of the original event -- minimal metadata
+> **Note.** Notification-relay discovery is by manual configuration or WoT recommendation. The pact-partner proxy flow (above) is a post-v1 optimization. v1 needs only kind 10062 registration plus APNs/FCM.
 
 ## 8. Deduplication
 
@@ -482,7 +427,5 @@ A notification relay maintaining subscriptions for N registered users needs appr
 - Notification relays are separate from storage relays and standard Nostr relays
 - They do not store events -- they monitor and forward wake-up signals
 - They interact with the standard relay layer (subscribing to events) but add no protocol requirements to relays
-- Compatible with the tiered retrieval cascade -- the app wakes and uses the standard sync path (cached endpoints, gossip, relay fallback)
+- Compatible with the three-tier retrieval cascade -- the app wakes and uses the standard sync path (local, partner query, relay fallback)
 - Kind 10062 follows the same conventions as other Gozzip events: `protocol_version` tag, signed by device key, root_identity tag for device-signed events
-- Kind 10067 enables decentralized relay discovery without a central registry
-- Kind 20062 integrates push delivery with the existing pact layer, reducing metadata exposure for users with full-node pact partners

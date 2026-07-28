@@ -1,5 +1,9 @@
 # WoT Mesh Protocol — Simulation Model
 
+This is the test plan for the simulator: the node and pact state to model, the attack scenarios to run, and the metrics to collect. It is the blueprint for the rebuilt simulator; it carries no measured results.
+
+> **Karma is a simulator-only experimental module** (`simulator/src/node/karma.rs`), disabled by default. The adopted incentive model ([ADR 009](../decisions/009-incentive-model.md)) is reach-based with no score or token; the `karma_*` state, metrics, and attack scenarios below test that variant, not the shipping design.
+
 ## Node State Variables
 
 ### Per Node
@@ -10,7 +14,7 @@
 | `activity_tier` | Events/day bucket (1–10, 11–50, 51–200, 200+) |
 | `storage_capacity` | Available bytes |
 | `storage_used` | Bytes currently committed to pacts |
-| `karma_balance` | Multilateral contribution score |
+| `karma_balance` | Multilateral contribution score (experimental module, disabled by default) |
 | `wot_graph` | Mutual follow adjacency list with hop distances |
 | `pact_list` | Active pacts with partner pubkeys |
 | `online_ratio` | Uptime % over rolling 30 days |
@@ -24,10 +28,10 @@
 | `created_at` | Pact formation timestamp |
 | `window_days` | Rolling storage window |
 | `activity_match_delta` | Closeness of activity tiers |
-| `challenge_success_rate` | Rolling PoS success % |
-| `last_challenge_at` | Last proof of storage timestamp |
+| `challenge_success_rate` | Rolling challenge success % |
+| `last_challenge_at` | Last data-availability challenge timestamp |
 | `renegotiation_trigger_threshold` | Activity delta % that triggers renegotiation |
-| `breach_count` | Cumulative PoS failures |
+| `breach_count` | Cumulative challenge failures |
 
 ---
 
@@ -40,7 +44,7 @@
 - WoT graphs with natural social clustering
 - Pacts form within 1–2 hops reliably
 - Content retrieval latency stays low
-- PoS challenges pass consistently
+- availability challenges pass consistently
 - Renegotiation triggers resolve cleanly without data loss
 
 ### Power User as Hub
@@ -97,7 +101,7 @@
 - All mutual-follow each other
 - Form pacts exclusively within Sybil cluster
 - Never actually store data
-- Pass PoS challenges by caching temporarily at challenge time
+- Pass availability challenges by caching temporarily at challenge time
 - Measure: does this degrade real network or stay isolated?
 
 **Identity Grinding**
@@ -125,9 +129,9 @@
 **Selective Storage Breach**
 - Node stores data for high-karma partners
 - Silently drops data for low-karma partners
-- Detect via: cross-referencing PoS results across pact network
+- Detect via: cross-referencing challenge results across pact network
 
-**Replay Attack on PoS**
+**Replay Attack on Availability Challenges**
 - Node caches a valid challenge response
 - Deletes actual data
 - Replays cached response to future challenges
@@ -253,50 +257,19 @@ The `should_forward()` decision also extends to 2-hop trusted peers — messages
 | Orbit | Medium (~60-70%) | Medium | Some pact overlap + gossip fetch |
 | Horizon | Low (~10-20%) | High | No pacts, relies on gossip/relay/cached endpoints |
 
-This validates the core thesis: relay dependency drops as social proximity increases.
+These are the expected ranges the simulator should test against the core thesis: relay dependency drops as social proximity increases.
 
 ### Tiered Caching
 
 Non-pact content is cached with tier-based TTLs: Inner Circle 30 days (pact-managed), Orbit 14 days, Horizon 3 days, relay-only 1 day. All cached content participates in cascading read-caches. See [Storage > Cascading Read-Caches](../architecture/storage.md#cascading-read-caches).
 
-### Validation Tables
+### Validation Tables to Collect
 
-Results from 5,000-node, 30-day simulation (BA m=50, seed 42, feed-tiered reads):
+The rebuilt simulator should report the feed-tiered read outcomes as three breakdowns, each splitting reads into instant / cached / gossip / relay / failed shares:
 
-**Read Tier by Feed Tier:**
-
-| Feed Tier | Reads | Instant | Cached | Gossip | Relay | Failed |
-|-----------|------:|--------:|-------:|-------:|------:|-------:|
-| Inner Circle | 3,523 | 98.3% | 0.0% | 0.1% | 1.1% | 0.5% |
-| Orbit | 1,724,422 | 91.9% | 0.0% | 2.2% | 4.7% | 1.2% |
-| Horizon | 0 | --- | --- | --- | --- | --- |
-
-Inner Circle reads achieve 98.3% instant delivery, confirming that pact partners reliably store each other's data. Orbit (non-mutual follows + referrals) still achieves 91.9% instant via incidental pact overlap. Horizon tier is empty at this scale because the BA graph model generates few mutual follow pairs, limiting 2-hop candidate discovery.
-
-**Relay Dependency Decay** (by reader pact age):
-
-| Pact Age | Reads | Instant | Cached | Gossip | Relay | Failed |
-|----------|------:|--------:|-------:|-------:|------:|-------:|
-| 0-1d | 57,521 | 95.0% | 0.0% | 0.7% | 3.4% | 0.9% |
-| 1-3d | 114,904 | 96.9% | 0.0% | 0.0% | 2.5% | 0.6% |
-| 3-7d | 229,779 | 98.1% | 0.0% | 0.0% | 1.5% | 0.4% |
-| 7-14d | 403,653 | 99.2% | 0.0% | 0.0% | 0.7% | 0.2% |
-| 14+d | 515,663 | 99.7% | 0.0% | 0.0% | 0.2% | 0.1% |
-| (pre-pact) | 406,425 | 69.7% | 0.0% | 9.2% | 16.9% | 4.2% |
-
-Relay usage drops from 16.9% (pre-pact) to 0.2% (14+ day pact age). This validates the core thesis: relay dependency decays as nodes form and mature pact partnerships.
-
-**Content Availability** (by simulation period):
-
-| Period | Reads | Avail% | Instant | Cached | Gossip | Relay | Failed |
-|--------|------:|-------:|--------:|-------:|-------:|------:|-------:|
-| day 1-5 | 288,005 | 94.5% | 61.0% | 0.0% | 11.6% | 21.9% | 5.5% |
-| day 5-10 | 287,447 | 99.1% | 94.0% | 0.0% | 1.5% | 3.6% | 0.9% |
-| day 10-20 | 575,648 | 99.7% | 98.7% | 0.0% | 0.0% | 1.0% | 0.3% |
-| day 20-30 | 576,845 | 99.9% | 99.7% | 0.0% | 0.0% | 0.3% | 0.1% |
-| **Overall** | **1,727,945** | **98.8%** | | | | | |
-
-Availability improves from 94.5% in the first 5 days to 99.9% by day 20-30, demonstrating the network's self-healing capacity as pacts form and stabilize.
+- **Read tier by feed tier** — Inner Circle vs Orbit vs Horizon, testing whether pact partners reliably store each other's data and whether incidental pact overlap carries Orbit reads.
+- **Relay dependency decay by reader pact age** — cohorts from pre-pact through 14+ day pact age, testing the core thesis that relay dependency decays as pacts form and mature.
+- **Content availability by simulation period** — early days vs later days of a 30-day run, testing the network's self-healing capacity as pacts stabilize.
 
 ---
 

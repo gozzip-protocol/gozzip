@@ -7,10 +7,11 @@ Key management and authentication in Gozzip. Built on Nostr's secp256k1 keypairs
 ```
 Root keypair (secp256k1) — cold storage (hardware wallet, air-gapped, or secure enclave)
 │
-├── DM key = HKDF-SHA256(root, "dm-decryption-" || rotation_epoch)
-│   ├── On DM-capable devices only (dm flag in kind 10050)
-│   ├── Rotates every 90 days (default; configurable) — old keys deleted after 7-day grace
-│   └── Published as dm_key in kind 10050
+├── DM seed (independent random secret — NOT derived from root; ADR 018)
+│   ├── DM epoch key = HKDF-SHA256(dm_seed, "dm-decryption-" || rotation_epoch)
+│   ├── Held on DM-capable devices only (dm flag in kind 10050)
+│   ├── Rotates every 90 days (default; configurable) — old epoch keys deleted after 7-day grace
+│   └── Current epoch's public key published as dm_key in kind 10050
 │
 ├── Governance key = HKDF-SHA256(root, "governance")
 │   ├── On trusted devices only — signs kind 0 (profile), kind 3 (follows)
@@ -34,7 +35,7 @@ Root keypair (secp256k1) — cold storage (hardware wallet, air-gapped, or secur
 - Info: purpose label string (e.g., `device-0`, `dm`, `governance`)
 - Output: 32 bytes, interpreted as secp256k1 scalar (reduced mod n; retry with incremented counter if result is zero)
 
-**DM key** — derived from root via HKDF-SHA256 with info `"dm-decryption-" || rotation_epoch`. Only DM-capable devices (those with the `dm` flag in kind 10050) hold this. Published in kind 10050 so DM senders can encrypt to it. Rotates every 90 days for bounded forward secrecy (default; configurable — see [DM Key Rotation](#dm-key-rotation)).
+**DM key** — derived from an **independent DM seed**, not from the root key ([ADR 018](../decisions/018-honest-security-and-relay-framing.md)). The per-epoch key is `HKDF-SHA256(dm_seed, "dm-decryption-" || rotation_epoch)`. The DM seed is a random secret generated once and held only by DM-capable devices (those with the `dm` flag in kind 10050); the current epoch's public key is published in kind 10050 so DM senders can encrypt to it. Deriving from an independent seed means a root-key compromise does not, by itself, expose DM traffic — compartmentalization runs one direction only (see [DM Key Rotation](#dm-key-rotation)). The key rotates every 90 days (default; configurable). **This is periodic key rotation, not forward secrecy:** because every epoch key is derived deterministically from the same DM seed, whoever holds the seed can compute all past and future epoch keys.
 
 **Governance key** — derived from root via HKDF-SHA256 with info `"governance"`. Only trusted devices hold this. Signs profile and follow list updates. Supports rotation via a signed rotation event if compromise is suspected (see [Governance Key Rotation](#governance-key-rotation)).
 
@@ -50,7 +51,7 @@ Root keypair (secp256k1) — cold storage (hardware wallet, air-gapped, or secur
 | Add/revoke devices | Yes | — | — | — |
 | Publish checkpoint | — | — | — | Yes (if delegated) |
 
-A compromised DM-capable phone (device key + DM key) can post and read DMs. A compromised non-DM device can only post. Neither can re-authorize itself, change the follow list, or forge the profile. The user revokes it from cold storage (root key signs new kind 10050 without the compromised device). After DM key rotation (90-day default cycle, configurable down to 30 days), a previously compromised DM key stops working for new messages.
+A compromised DM-capable phone (device key + DM seed) can post and read DMs. A compromised non-DM device can only post. Neither can re-authorize itself, change the follow list, or forge the profile. The user revokes it from cold storage (root key signs new kind 10050 without the compromised device). Because a DM-capable device holds the DM *seed*, a plain epoch rotation does not lock it out — the seed derives every epoch. To fully cut off a compromised DM-capable device, the user rotates to a **new DM seed** (published as a fresh `dm_key` in kind 10050); after that, the old seed decrypts only messages sent before the rotation.
 
 ## Device Delegation
 
@@ -66,7 +67,7 @@ All delegation changes require signing with the root key from cold storage. See 
 
 For most users, the root key lives in the device's secure enclave (iOS Secure Enclave, Android StrongBox) rather than an external hardware wallet. The secure enclave provides hardware-backed key storage with biometric authentication — the root key never leaves the secure hardware, and signing operations happen inside the enclave. This gives most users hardware-wallet-grade security without requiring them to purchase or manage a separate device.
 
-The client automates DM key rotation transparently. When the rotation epoch advances (every 90 days by default), the client derives the new DM key, publishes an updated kind 10050, and deletes the old key after the 7-day grace window — no user interaction required.
+The client automates DM key rotation transparently. When the rotation epoch advances (every 90 days by default), the client derives the new epoch key from the DM seed, publishes an updated kind 10050 with the new `dm_key`, and deletes the old epoch key after the 7-day grace window — no user interaction and no cold-storage root key required (the DM seed lives on the DM-capable device, not in cold storage).
 
 Adding a new device uses device-to-device delegation: the existing device displays a QR code containing a one-time authorization token, the new device scans it, and the existing device signs a kind 10050 update adding the new device's pubkey. The user's experience is "scan a QR code on your existing device" — comparable to Signal's device linking flow. The root key signing happens inside the secure enclave of the authorizing device, triggered by biometric confirmation.
 
@@ -112,30 +113,30 @@ Per-field merge of the `content` JSON:
 
 ## DM Encryption
 
-DMs encrypt to the `dm_key` published in kind 10050 (not the root pubkey directly). All devices can decrypt because they all hold the derived DM private key. See [ADR 007](../decisions/007-key-derivation-hierarchy.md).
+DMs encrypt to the `dm_key` published in kind 10050 (not the root pubkey directly). All DM-capable devices can decrypt because they all hold the DM seed and derive the current epoch key from it. See [ADR 007](../decisions/007-key-derivation-hierarchy.md).
 
 - NIP-44 encryption targets the recipient's `dm_key` (from their kind 10050)
 - NIP-59 sealed gifts wrap the encrypted event for metadata privacy
 - Device pubkey signs the outer event
-- Compromising a device reveals the DM key but not the root key
+- Compromising a DM-capable device reveals the DM seed (and thus all DM epoch keys) but not the root key
 
 **AEAD integrity:** NIP-44 uses authenticated encryption (AEAD). Tampered ciphertext fails decryption with an authentication error. Storage peers holding encrypted DM blobs cannot serve corrupted ciphertext — AEAD proves integrity on the recipient's end.
 
-**Metadata protection and limitations:** NIP-59 gift wrapping hides the inner event's recipient from relays. The outer wrapper's `p` tag points to the relay, not the actual recipient. However, timing correlation between store and fetch operations can still reveal communication patterns to a relay operator — if Alice stores a gift-wrapped event and Bob fetches it 30 seconds later, the relay can infer they are communicating even without reading the `p` tag. See [surveillance-surface.md](../design/surveillance-surface.md) for the full analysis of DM metadata exposure, including relay collusion scenarios and mitigation strategies (DM relay rotation, decoy traffic, timing jitter).
+**Metadata protection and limitations:** NIP-59 gift wrapping hides the inner event's recipient from relays. The outer wrapper's `p` tag points to the relay, not the actual recipient. However, timing correlation between store and fetch operations can still reveal communication patterns to a relay operator — if Alice stores a gift-wrapped event and Bob fetches it 30 seconds later, the relay can infer they are communicating even without reading the `p` tag. See [surveillance-surface.md](../design/privacy-model.md) for the full analysis of DM metadata exposure, including relay collusion scenarios and mitigation strategies (DM relay rotation, decoy traffic, timing jitter).
 
 ### DM Key Rotation
 
-The DM key rotates every 90 days (default) for bounded forward secrecy. See [ADR 008](../decisions/008-protocol-hardening.md).
+The DM key rotates every 90 days (default). This is **periodic key rotation, not forward secrecy** — see [ADR 008](../decisions/008-protocol-hardening.md) and [ADR 018](../decisions/018-honest-security-and-relay-framing.md).
 
 - Rotation epoch: `floor(unix_timestamp / (rotation_period * 86400))`
-- New key derived via `HKDF-SHA256(root, "dm-decryption-" || rotation_epoch)`
-- Root key signs a new kind 10050 with the updated `dm_key`
-- Old DM private keys are deleted from devices after a 7-day grace window post-rotation
-- 7-day grace window: devices retain the previous key for 7 days to handle late-arriving messages
+- New epoch key derived via `HKDF-SHA256(dm_seed, "dm-decryption-" || rotation_epoch)`, where `dm_seed` is the independent DM seed (not the root key; ADR 018)
+- A DM-capable device (which holds the seed) signs and publishes a new kind 10050 with the updated `dm_key` — no cold-storage root key needed
+- Old DM epoch private keys are deleted from devices after a 7-day grace window post-rotation
+- 7-day grace window: devices retain the previous epoch key for 7 days to handle late-arriving messages
 - Senders always encrypt to the current `dm_key` from the recipient's latest kind 10050
-- Compromise of a DM key reveals at most ~97 days of DMs (90-day window + 7-day grace)
+- **Honest limitation:** rotation bounds the exposure of a single *leaked epoch key* (e.g. one intercepted in transit) to ~97 days of DMs (90-day window + 7-day grace). It is **not** forward secrecy: all epoch keys derive deterministically from the DM seed, so anyone who obtains the seed — for example by compromising a DM-capable device — can compute every past and future epoch key. Cutting that off requires rotating to a new DM seed, not just a new epoch.
 
-The 90-day default is configurable. Users in high-threat environments may reduce this to 30 days for a smaller exposure window on device compromise. The trade-off is more frequent key distribution events (kind 10050 updates).
+The 90-day default is configurable. Users in high-threat environments may reduce this to 30 days for a smaller exposure window on a leaked epoch key. The trade-off is more frequent key distribution events (kind 10050 updates).
 
 ### Per-Device DM Capability
 
@@ -191,6 +192,6 @@ Required client behavior to detect unauthorized governance key usage. See [ADR 0
 
 - **How do replaceable events merge across devices?** — `prev` tag enables fork detection; follow list uses set-based merge (most recent action wins on conflict — see [ADR 008](../decisions/008-protocol-hardening.md)); profile uses per-field latest-timestamp. See [ADR 003](../decisions/003-replaceable-event-merge.md).
 - **Is there a "primary device" for replaceable events?** — No. Any device can update and merge. Deterministic merge rules eliminate the need for a leader.
-- **Should device keys be derived from the root key or independent?** — Independent. Device subkeys are generated per-device. The DM key and governance key are derived from root via HKDF-SHA256, but device keys are not — this limits blast radius if a device is compromised. See [ADR 007](../decisions/007-key-derivation-hierarchy.md).
+- **Should device keys be derived from the root key or independent?** — Independent. Device subkeys are generated per-device, and the DM key derives from an independent DM seed rather than the root ([ADR 018](../decisions/018-honest-security-and-relay-framing.md)). Only the governance key is derived from root via HKDF-SHA256. Keeping device keys and the DM seed independent limits blast radius: a device compromise does not expose the root or governance keys, and a root compromise does not by itself expose DM traffic. Compartmentalization is one-directional — the root still derives the governance key, so root compromise exposes everything the root derives. See [ADR 007](../decisions/007-key-derivation-hierarchy.md).
 - **Should there be device capability scoping?** — Yes. Governance key restricts kind 0/kind 3 signing to trusted devices. Checkpoint delegation restricts kind 10051 signing. Device keys handle day-to-day events. See [ADR 007](../decisions/007-key-derivation-hierarchy.md).
 - **How does a user recover if the root key is lost?** — N-of-M social recovery via kinds 10060/10061. User designates M recovery contacts; N attestations + 7-day timelock enable root key rotation. See [ADR 008](../decisions/008-protocol-hardening.md).

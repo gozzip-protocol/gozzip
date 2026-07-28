@@ -25,7 +25,7 @@ The referral layer. Contains two types of authors:
 1. **High-interaction authors** — people you actively engage with (replies, reposts, reactions), even if the follow is unilateral
 2. **Socially-endorsed authors** — people that 3+ of your Inner Circle contacts interact with heavily
 
-Content is fetched via gossip or cached endpoints on a polling interval (default: 15 minutes). Cached for 14 days.
+Content is fetched via encrypted partner queries (with the optional gossip extension filling gaps) on a polling interval (default: 15 minutes). Cached for 14 days.
 
 Orbit is where interaction becomes referral. When you reply to someone's posts, your followers' clients observe that interaction and may surface that author in their own Orbit.
 
@@ -96,10 +96,10 @@ Client syncs feed
   |   +- Each round, exclude list grows, responses shrink
   |   +- After ~5 partners, most Inner Circle + Orbit is covered
   |
-  +- Step 5: Gossip/relay for uncovered follows
+  +- Step 5: Partner query / relay for uncovered follows
       +- Remaining authors not stored by any pact partner
-      +- Use cached endpoints (kind 10059) or gossip (kind 10057)
-      +- Relay fallback for cold discovery
+      +- Encrypted partner query (kind 10057) to the author's pact partners
+      +- Relay fallback for cold discovery (optional gossip extension fills gaps)
 ```
 
 ### Coverage Example
@@ -172,7 +172,7 @@ Client opens / background sync
   |
   +- Tier 2 (Orbit): batch-synced + gossip for gaps
   |   +- Partially covered by pact partner overlap
-  |   +- Gossip/cached endpoints for uncovered Orbit authors
+  |   +- Encrypted partner query (optional gossip) for uncovered Orbit authors
   |   +- Referral scan: check IC interaction patterns
   |   +- Sorted by interaction_score * recency
   |
@@ -222,7 +222,7 @@ No new event kinds are required. The feed model is **client-side logic** built o
 
 - **Pacts** (kind 10053) guarantee Inner Circle content availability
 - **Reactions** (kind 7), **replies** (kind 1 with `e` tag), **reposts** (kind 6) provide interaction signals
-- **Gossip** (kind 10057) and **cached endpoints** (kind 10059) handle Orbit fetching
+- **Encrypted partner queries** (kind 10057) handle Orbit fetching; the optional gossip extension fills gaps
 - **Relay queries** handle Horizon content
 - **Cascading read-caches** distribute cached content to the network
 
