@@ -5,7 +5,9 @@
 
 ## Context
 
-Gozzip's simulator validates the protocol at 5000 nodes but has no real networking. The protocol paper describes "FIPS integration" for transport independence, but FIPS (Federal Information Processing Standards) requires FIPS-approved algorithms. Both Ed25519 (iroh) and secp256k1 (Nostr) are non-FIPS. No coherent FIPS posture is achievable without replacing both identity systems. iroh (v0.97.0) provides peer-to-peer QUIC connections with Ed25519 identity, NAT traversal, and iroh-gossip (epidemic broadcast trees via HyParView + PlumTree) with topic-based pub/sub. This is a natural fit for gozzip's WoT-filtered gossip model.
+Gozzip's simulator exercises the protocol at 5000 nodes but has no real networking. The protocol paper (§8) describes transport independence via **FIPS — the Free Internetworking Peering System** (github.com/jmcorgan/fips), a Nostr-keyed mesh transport project. FIPS-the-mesh is early-stage and unmaintained; building on it means owning an experimental transport stack. iroh (v0.97.0) instead provides a maintained, production-grade peer-to-peer QUIC layer with Ed25519 identity, NAT traversal, and iroh-gossip (epidemic broadcast trees via HyParView + PlumTree) with topic-based pub/sub — the same transport-independence goal with a stack we do not have to maintain. This is a natural fit for gozzip's WoT-filtered gossip model.
+
+> **Note (naming):** "FIPS" here is the *Free Internetworking Peering System*, not the U.S. *Federal Information Processing Standards*. The decision to adopt iroh rests on transport maturity, **not** on crypto-compliance grounds — both Ed25519 and secp256k1 are non-FIPS-140, and that is irrelevant to a p2p social protocol.
 
 ## Decision
 
@@ -13,9 +15,9 @@ Gozzip's simulator validates the protocol at 5000 nodes but has no real networki
 
 Extract protocol logic into gozzip-types shared crate. Simulator stays untouched for deterministic validation. New gozzip-node binary implements real networking via iroh. One protocol implementation, two transports.
 
-### 2. Drop FIPS
+### 2. Drop FIPS (the Free Internetworking Peering System)
 
-Replace all FIPS references with iroh-based transport. Ed25519 and secp256k1 are both non-FIPS. No government procurement targets for a p2p gossip protocol. Ed25519 is battle-tested (Signal, Tor, SSH, WireGuard).
+Replace the paper's FIPS mesh transport with iroh. FIPS-the-mesh is pre-production and unmaintained; iroh delivers equivalent transport independence on a maintained QUIC stack. Ed25519 (iroh's identity) is battle-tested (Signal, Tor, SSH, WireGuard).
 
 ### 3. iroh-gossip for Peer Discovery and Message Propagation
 
@@ -47,9 +49,9 @@ Two implementations of same protocol. Maintenance nightmare. Protocol changes mu
 
 5000 iroh endpoints on one machine infeasible. Loses deterministic simulation. Tests become flaky.
 
-### FIPS Compliance
+### Building on FIPS-the-mesh directly
 
-Ed25519 non-FIPS, secp256k1 non-FIPS. Would require forking iroh and breaking Nostr compatibility. Zero practical benefit.
+Would mean owning an experimental, unmaintained transport stack. iroh provides the same transport independence with production QUIC, NAT traversal, and a real gossip implementation. (Note: U.S. FIPS-140 crypto *compliance* was never a goal — both curves are non-FIPS-140, which is irrelevant here.)
 
 ### Derived Ed25519 Key from secp256k1 Root
 
@@ -75,6 +77,6 @@ Expands blast radius of root key compromise. Already identified as critical weak
 - IP address exposure to all direct connection peers (including potential sybils)
 
 **Neutral:**
-- FIPS dropped — no practical impact, eliminates dead-end engineering
+- FIPS-the-mesh dropped — no practical impact, eliminates dead-end engineering on an unmaintained transport
 - BLE transport deferred — iroh's custom transport API is experimental, only Tor works. Design for future addition via QUIC multipath.
 - bitchat remains inspiration for BLE mesh (ADR 010) — no code dependency on iroh

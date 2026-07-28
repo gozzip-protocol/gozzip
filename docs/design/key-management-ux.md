@@ -5,7 +5,7 @@
 
 ## Problem Statement
 
-The protocol uses a 4-level key hierarchy (root, governance, DM, device subkeys). This provides excellent cryptographic compartmentalization — device compromise is contained, root key lives in cold storage, DM keys rotate independently.
+The protocol uses a layered key model (root, governance, device subkeys, plus an independent DM seed). This provides **one-directional** compartmentalization: compromising a device subkey does not expose the root, governance, or DM keys. The reverse does **not** hold — the root key derives the governance and device subkeys, so root compromise (including a cloud-keychain backup in standard mode) exposes those. The DM key is the exception: it is derived from its own independent seed ([ADR 018](../decisions/018-honest-security-and-relay-framing.md)), so DM history survives a root compromise. Device rotation every 90 days is periodic key rotation, not forward secrecy.
 
 However, this creates a UX problem: users must understand key types, manage cold storage, access root keys for device onboarding and DM rotation, and configure social recovery. No mainstream messaging app requires any of this.
 

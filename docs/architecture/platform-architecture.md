@@ -158,7 +158,7 @@ Firefox is actually easier — its event-page model gives a DOM context and more
 
 | Data | Size | Storage |
 |------|------|---------|
-| Pact state (20 active + 3 standby) | <100 KB | IndexedDB |
+| Pact state (20 active) | <100 KB | IndexedDB |
 | Stored events (light node, 30-day window) | 15-50 MB | IndexedDB |
 | Read cache (LRU) | 100 MB configurable | IndexedDB |
 | WoT graph + interaction data | 1-5 MB | IndexedDB |
@@ -727,23 +727,23 @@ The proxy does **not** hold the user's root key. Instead:
 3. Proxy signs pact-related events with its device subkey
 4. Pact partners verify via the delegation chain: proxy_pubkey → root_pubkey
 
-**New event kind needed — Kind 10063 (Proxy Delegation):**
+The proxy's capabilities are expressed as **tags on the same Kind 10050 device delegation** that already authorizes it — no new event kind is introduced (kind 10063 is Deletion request in the [registry](../protocol/messages.md)):
 
 ```json
 {
-  "kind": 10063,
+  "kind": 10050,
   "pubkey": "<root_pubkey>",
   "tags": [
-    ["proxy", "<proxy_device_pubkey>"],
-    ["capabilities", "challenge-response", "gossip-forward", "data-serve"],
-    ["push_endpoint", "<APNS/FCM token, encrypted to proxy>"],
-    ["expires", "<unix_timestamp>"]
+    ["device", "<proxy_device_pubkey>", "server"],
+    ["proxy_capabilities", "<proxy_device_pubkey>", "challenge-response", "gossip-forward", "data-serve"],
+    ["push_endpoint", "<proxy_device_pubkey>", "<APNS/FCM token, encrypted to proxy>"],
+    ["proxy_expires", "<proxy_device_pubkey>", "<unix_timestamp>"]
   ],
   "sig": "<signed by root key>"
 }
 ```
 
-This event authorizes the proxy to act on behalf of the mobile node for specific capabilities. It's time-limited and revocable (publish a new 10063 without the proxy, or let it expire).
+This authorizes the proxy to act on behalf of the mobile node for specific capabilities. It's time-limited and revocable (republish Kind 10050 without the proxy device, or let the `proxy_expires` timestamp lapse).
 
 ### Deployment Options
 
@@ -822,74 +822,38 @@ Nodes need to find each other's current network address to exchange events, but:
 - NAT means most devices don't have publicly routable addresses
 - VPN usage adds another layer of address instability
 
-### How Gozzip Solves This (4 Layers)
+### How Gozzip Solves This (3 Layers)
 
-#### Layer 1: Storage Endpoint Hints (Kind 10059)
+This mirrors the [three-tier retrieval model](../architecture/storage.md#event-retrieval) ([ADR 017](../decisions/017-three-tier-retrieval.md)): iroh addresses partners by pubkey, an encrypted partner query reaches them, and relays are the fallback rendezvous.
 
-The primary discovery mechanism. When you follow someone, they send you an encrypted message containing their pact partners' connection endpoints. Wrapped in NIP-59 gift wrap for privacy — the relay stores an opaque blob, only the intended recipient can decrypt it.
+#### Layer 1: iroh Identity-Routed Transport
 
-```json
-// Outer event (NIP-59 gift wrap — relay sees only this)
-{
-  "kind": 1059,
-  "pubkey": "<random_throwaway_key>",
-  "content": "<NIP-44 encrypted inner event>",
-  "tags": [["p", "<follower_root_pubkey>"]]
-}
+The primary mechanism. iroh decouples identity from transport address entirely:
 
-// Inner event (only follower can decrypt)
-{
-  "kind": 10059,
-  "content": "<NIP-44 encrypted: {\"peers\": [\"wss://relay1\", \"wss://relay2\"]}>",
-  "tags": [
-    ["p", "<follower_root_pubkey>"],
-    ["root_identity", "<root_pubkey>"]
-  ]
-}
-```
+- **A user's root pubkey IS their iroh network address** — no IP needed
+- iroh routes datagrams by pubkey, not IP; dynamic IPs, NAT, and address changes become irrelevant at the protocol level
+- Relay-assisted hole punching establishes direct QUIC connections; sessions survive route changes (WiFi → cellular)
+- Addressing is by pubkey, so nothing advertises or caches a partner's IP
 
-- **NIP-59 gift wrapping** — relay stores opaque event, can't see endpoints or identify the relationship. No relay-side filtering needed.
-- Encrypted to the specific follower — only they can read the endpoints
-- Updated when storage peers change (pact formed/dropped)
-- WoT-scoped: only sent to followers within 2 hops (limits topology leakage)
-- Followers cache these locally — no need to discover on every request
-- **Works with any standard Nostr relay** — relay just stores a gift-wrapped event like any other
+#### Layer 2: Encrypted Partner Query (Kind 10057)
 
-**In a mobile-first network (90%+ mobile), most pact partners are also mobile.** Kind 10059 endpoints will typically contain relay URLs rather than direct peer IPs:
-
-```json
-{"peers": ["wss://relay.example.com", "wss://relay2.example.com"]}
-```
-
-This tells followers: "to reach my pact partners, connect to these relays." The relays serve as stable rendezvous points for mobile-to-mobile communication. The endpoint hint shifts from "here's my partner's IP" to "here's where my partners check in."
-
-**For the minority with stable infrastructure** (desktop full nodes, proxy daemons), endpoints can include direct addresses alongside relay URLs.
-
-#### Layer 2: Pseudonymous Gossip Discovery (Kind 10057)
-
-When you need data from someone whose endpoint you don't have cached, you broadcast a pseudonymous request through the gossip network using a rotating request token:
+When you need data an author's devices can't currently serve, you send a **NIP-44-encrypted kind 10057 request directly to one of that author's pact partners**, routed by the partner's pubkey via iroh:
 
 ```json
 {
   "kind": 10057,
+  "content": "<NIP-44 encrypted: { target: <author_pubkey>, since: <timestamp> }>",
   "tags": [
-    ["bp", "<H(target_pubkey || 2026-03-06)>"],
-    ["since", "<timestamp>"],
-    ["ttl", "3"],
+    ["p", "<storage_peer_pubkey>"],
     ["request_id", "<unique_id>"]
   ]
 }
 ```
 
-- `bp` is a rotating request token — computed as H(target_pubkey || YYYY-MM-DD), a daily-rotating lookup key that prevents casual cross-day linkage but is reversible by any party knowing the target's public key. Not a formal cryptographic blinding scheme.
-- Propagates through WoT (2-hop boundary, rate-limited) — **client-side forwarding, not relay logic**
-- Storage peers (other users' clients) match the token against their stored pubkeys
-- Responders reply privately via Kind 10058 with a connection endpoint
-- **Works with any standard Nostr relay** — the relay just stores and forwards the event
-
-**This doesn't require knowing anyone's IP.** The request travels through existing WebSocket connections between peers. Each peer's **client** that receives the request computes `H(stored_pubkey || date)` for pubkeys it stores. If match, it responds privately with its current address. The relay doesn't need to understand the token — storage peers do.
-
-Gossip reach per request: ~400-900 unique online nodes (realistic 5K network). Since a target has ~20 pact partners, at least one is very likely to be online and reachable within 2 hops.
+- The request is **signed and routed by pubkey**. Privacy relative to vanilla Nostr comes from **where** the metadata flows (WoT pact partners, not arbitrary relay operators), not from requester anonymity.
+- The chosen storage peer decrypts, checks whether it holds the author's events, and replies privately via Kind 10058 with a connection endpoint.
+- Since a target has ~20 pact partners, at least one is very likely online and reachable.
+- **Optional gossip extension:** for censorship resistance, the same kind 10057 request can be WoT-bounded-forwarded (2-hop boundary, TTL=3, rate-limited, client-side) rather than sent to a single partner. This is an optional layer, not a required tier.
 
 #### Layer 3: Relay Rendezvous (Fallback)
 
@@ -898,30 +862,18 @@ Relays serve as stable rendezvous points when direct peer discovery fails:
 - Users publish relay preferences via NIP-65 (relay list)
 - Relays have stable domains/IPs
 - Kind 10058 (data offer) responses can route through relays
-- Relay usage decays from 16.9% to 0.2% as pact network matures
+- Relay usage decays as the pact network matures, but relays remain structurally important (bootstrap, discovery, mailbox, push) — reduced, not optional
 
 Relays are the "DNS of last resort" — always available, rarely needed.
-
-#### Layer 4: iroh Transport Layer
-
-iroh decouples identity from transport address entirely:
-
-- **A user's root pubkey IS their iroh network address** — no IP needed
-- iroh mesh protocol routes datagrams by pubkey, not IP
-- Spanning tree routing + bloom filter reachability handles topology changes
-- Works over UDP, BLE, radio, Tor — any transport
-- Sessions survive route changes (Noise XK binds to identity, not address)
-
-**With iroh, the dynamic IP problem disappears entirely.** You address messages to a pubkey; the mesh figures out how to deliver them.
 
 ### Discovery by Platform
 
 | Platform | Primary Discovery | Fallback | IP Stability |
 |----------|------------------|----------|-------------|
-| Desktop (Full) | Direct — has stable IP/domain | Relay | High |
-| Extension (Light) | Relay rendezvous + cached endpoints | Gossip | N/A (outbound only) |
+| Desktop (Full) | iroh (pubkey-routed) + direct IP/domain | Relay | High |
+| Extension (Light) | iroh (pubkey-routed) + relay rendezvous | Relay | N/A (outbound only) |
 | Proxy Daemon | Direct — VPS with static IP | Relay | Very high |
-| Mobile (no proxy) | Relay rendezvous | Gossip → relay | N/A (outbound only) |
+| Mobile (no proxy) | iroh (pubkey-routed) + relay rendezvous | Relay | N/A (outbound only) |
 | Mobile (with proxy) | Connects to proxy (stable IP) | Relay | Proxy is stable |
 
 ### Key Insight: Outbound-Only + Relay Rendezvous
@@ -953,7 +905,7 @@ For mobile (90%+ of users): **address changes don't matter.** Phones connect out
 
 For full nodes/desktops with incoming connections:
 1. Node detects IP change (OS network event)
-2. Updates DNS (DDNS) or publishes updated Kind 10059 to followers
+2. iroh re-advertises reachability for the node's pubkey; optionally updates DNS (DDNS)
 3. Reconnects outbound WebSockets to relays and pact partners
 
 **Frequency:** VPS: almost never. Desktops: occasional (DHCP renewal). Mobile: irrelevant.
@@ -990,7 +942,7 @@ gozzip-core (Rust library)
 ├── gossip/         WoT-filtered gossip routing
 ├── feed/           3-tier feed model (Inner Circle, Orbit, Horizon)
 ├── interaction/    InteractionTracker, scoring, referrals
-├── crypto/         secp256k1 signing, checkpoint merkle, rotating request tokens
+├── crypto/         secp256k1 signing, checkpoint merkle, NIP-44 request encryption
 ├── sync/           Checkpoint reconciliation, batch sync
 ├── storage/        Event storage, LRU cache, eviction
 └── types/          Event, Pact, Checkpoint, WotTier, etc.

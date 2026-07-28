@@ -1,7 +1,7 @@
 # ADR 010: Bitchat Integration
 
 **Date:** 2026-03-01
-**Status:** Accepted
+**Status:** Accepted — **BLE transport deferred by [ADR 011](011-iroh-transport-integration.md)** (no iroh BLE transport exists yet). BitChat remains inspiration; the integration is post-v1 (see [docs/future/bitchat-integration.md](../future/bitchat-integration.md)).
 
 ## Context
 

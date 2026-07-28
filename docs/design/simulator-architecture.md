@@ -1,6 +1,5 @@
 # Gozzip Network Simulator — Design
 
-**Date:** 2026-03-01
 **Purpose:** Validate the 50 formulas from the plausibility analysis and stress-test the protocol under adversarial conditions.
 
 ---
@@ -115,7 +114,7 @@ Node task loop:
 | Challenge-response | 10054 | F-43..F-44 |
 | Content delivery | 1, 6, 7, 14, 30023 | F-34..F-42, F-45..F-50 |
 | Checkpoints | 10051 | F-09..F-12 |
-| Cached endpoints | 10059 | Delivery path priority |
+| Retrieval cascade | 10057/10058 | Delivery path priority (Local → Partner query → Relay) |
 
 ### What we don't simulate
 
@@ -181,16 +180,18 @@ Generate network, run normal activity for simulated 30 days, compare against all
 $ cargo run -- validate --nodes 10000 --seed 42
 
 ━━ Formula Validation (10,000 nodes, seed=42) ━━
-F-01 avg_event_size:    expected=750B   actual=742B   ✔ (1.1%)
-F-14 all_offline_prob:  expected=1e-8   actual=0      ✔
-F-24 online_fraction:   expected=46.2%  actual=45.8%  ✔ (0.4%)
-F-31 gossip_per_node:   expected=0.16/s actual=0.19/s ⚠ (18%)
+F-01 avg_event_size:    expected=750B    actual=<measured>  <status>
+F-14 all_offline_prob:  expected=1e-8    actual=<measured>  <status>
+F-24 online_fraction:   expected=46.2%   actual=<measured>  <status>
+F-31 gossip_per_node:   expected=0.16/s  actual=<measured>  <status>
 ...
-Passed: 47/50  Warnings: 2  Failed: 1
+Passed: <p>/50  Warnings: <w>  Failed: <f>
 
 Output: results/validate-10k-seed42.json
         results/validate-10k-seed42.html
 ```
+
+The `expected` column is the analytical value computed from §1 constants; `actual` is filled by the run and compared against the pass/warn/fail thresholds below.
 
 Pass/warn/fail thresholds:
 - ✔ Pass: within 15% of expected
@@ -282,19 +283,21 @@ Aggregates:
 {
   "config": { "nodes": 10000, "seed": 42, "graph": "barabasi-albert", ... },
   "formulas": {
-    "F-01": { "expected": 750, "actual": 742, "deviation_pct": 1.1, "status": "pass" },
+    "F-01": { "expected": 750, "actual": null, "deviation_pct": null, "status": "pending" },
     ...
   },
   "per_node": {
-    "data_availability": { "p50": 0.998, "p95": 0.991, "p99": 0.982, "min": 0.95 },
-    "content_reach_pct": { "p50": 0.89, "p95": 0.72, "p99": 0.61 },
-    "gossip_latency_ms": { "p50": 120, "p95": 450, "p99": 890 },
-    "bandwidth_mb_day": { "full_node_p50": 6.4, "light_node_p50": 3.2 },
+    "data_availability": { "p50": null, "p95": null, "p99": null, "min": null },
+    "content_reach_pct": { "p50": null, "p95": null, "p99": null },
+    "gossip_latency_ms": { "p50": null, "p95": null, "p99": null },
+    "bandwidth_mb_day": { "full_node_p50": null, "light_node_p50": null },
     ...
   },
   "scenarios": { ... }
 }
 ```
+
+(`expected` values come from the analytical model; measured fields are populated by a run.)
 
 ### HTML Report (plotly.js)
 

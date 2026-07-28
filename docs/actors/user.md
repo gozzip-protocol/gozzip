@@ -40,7 +40,7 @@ This changes follow behavior: you keep your follows wisely because you bear the 
 
 ## Storage Obligations
 
-Every user commits to storing recent events for 10–40+ volume-matched WoT peers (scaled by follower count, ~20 typical). This is the reciprocal storage pact model — see [Storage](../architecture/storage.md).
+Every user commits to storing recent events for their WoT peers via capped-asymmetric pacts (target ~20 active, floor 12; each partner stores whatever the other produces up to ~10 MB/month). This is the reciprocal storage pact model — see [Storage](../architecture/storage.md) and [ADR 013](../decisions/013-capped-asymmetric-pacts.md).
 
 - You store their events since their last checkpoint (~monthly)
 - They store yours in return
@@ -85,7 +85,7 @@ Gozzip works without internet through BLE mesh and local queuing. Inspired by [b
 - **Oracle** — resolution of device → root identity happens transparently
 - **Bot** — may interact with bots for automated services
 - **Bridge** — events from followed users on other networks arrive via bridges
-- **Storage peers** — reciprocal data storage via pacts, gossip discovery via kind 10059 endpoint hints
+- **Storage peers** — reciprocal data storage via pacts; partners are reached directly over iroh (addressing by pubkey)
 - **Seedling** (as Guardian) — stores one newcomer's data voluntarily via guardian pact
 
 ## Resolved Questions

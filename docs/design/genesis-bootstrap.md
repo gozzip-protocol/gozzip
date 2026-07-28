@@ -106,25 +106,25 @@ Then the bootstrap strategy has failed. Possible responses:
 
 ## Early Network Parameter Relaxation
 
-During the bootstrap period (network < 1,000 users), certain protocol parameters should be relaxed:
+During the bootstrap period (network < 1,000 users), certain protocol parameters should be relaxed. This is the **canonical relaxation schedule** — the [pact state machine](../protocol/pact-state-machine.md) references it rather than restating its own:
 
-| Parameter | Normal Value | Bootstrap Value | Rationale |
-|-----------|-------------|-----------------|-----------|
-| Volume tolerance | ±30% | ±100% | Thin matching pool; accept wider range |
-| Follow-age for pacts | 30 days mutual | 7 days mutual | Accelerate pact formation |
+| Parameter | Normal (mature) | Bootstrap (< 1,000 users) | Rationale |
+|-----------|-----------------|---------------------------|-----------|
+| Follow-age for pacts | 7 days mutual | 72 hours mutual | Accelerate pact formation; a Seedling shouldn't wait weeks to start becoming Sovereign |
 | Guardian threshold | Sovereign (15+ pacts) | 5+ pacts | Lower barrier to becoming a Guardian |
 | Min account age | 7 days | 3 days | Faster onboarding for early adopters |
 
 Parameters tighten automatically as network size grows:
-- At 500 users: follow-age increases to 14 days
-- At 1,000 users: volume tolerance tightens to ±50%, follow-age to 21 days
-- At 3,000 users: all parameters at normal values
+- At 500 users: follow-age increases toward the 7-day mature value.
+- At 3,000 users: all parameters at normal values.
+
+(Pacts are capped-asymmetric and do not depend on a matched-volume pool ([ADR 013](../decisions/013-capped-asymmetric-pacts.md)), so there is no volume-tolerance parameter to relax.)
 
 ## Adoption Strategy Integration
 
 Genesis Guardian nodes are necessary but not sufficient. The bootstrap plan must be paired with:
 
-1. **Day-one value features** that work without pacts: multi-device identity, encrypted DMs, social recovery (see whitepaper §10.1)
+1. **Day-one value features** that work without pacts: multi-device identity, encrypted DMs, social recovery (see whitepaper §11.1)
 2. **Community-first targeting**: dense clusters of 200+ users (conference attendees, activist groups, Bitcoin communities) rather than scattered individual adoption
 3. **The first client must be the best Nostr client available**: users adopt for UX, sovereignty accrues in the background
 

@@ -31,14 +31,19 @@ New primitives on top of Nostr:
 | `root_identity` tag | — | Attribute device-signed events to root identity |
 | Client-side device resolution | — | Client resolves device → root via Kind 10050 (relay oracle optional) |
 | Storage pact | 10053 | Reciprocal storage commitment between WoT peers |
-| Storage challenge | 10054 | Proof of storage via challenge-response |
-| Pact request/offer | 10055/10056 | DVM-style discovery of storage partners |
-| Data request/offer | 10057/10058 | DVM-style retrieval from storage peers |
-| Storage endpoint hint | 10059 | Encrypted peer endpoints for gossip discovery |
+| Data-availability challenge | 10054 | Verify a partner can produce stored data on demand |
+| Pact request/offer | 10055/10056 | Discovery of storage partners |
+| Data request/offer | 10057/10058 | Direct NIP-44-encrypted retrieval from storage peers |
 | Recovery delegation | 10060 | Designate N-of-M social recovery contacts |
 | Recovery attestation | 10061 | Attest root key rotation (7-day timelock) |
+| Push notification token | 10062 | Register a push token with a notification relay |
+| Deletion request | 10063 | Request partners drop specified events |
+| Content report | 10064 | Report content to a relay operator (encrypted detail) |
+| Temporary suspension | 10065 | Governance emergency device suspension |
+| iroh cross-key binding | 10070 | Attest secp256k1 ↔ Ed25519 transport identity ([ADR 011](../decisions/011-iroh-transport-integration.md)) |
 | Per-event hash chain | — | seq + prev_hash tags for stream completeness |
-| Onion routing (relay service) | — | Optional privacy layer for gossip routing, paid via Lightning |
+
+See the canonical registry in [Protocol > Messages](../protocol/messages.md) for full event schemas.
 
 See [Protocol > Messages](../protocol/messages.md) for full event schemas.
 

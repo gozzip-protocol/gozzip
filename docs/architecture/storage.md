@@ -15,7 +15,7 @@ Three tiers of storage, tried in priority order:
 
 ## Storage Pacts
 
-Every user commits to storing recent data for ~20 volume-matched peers in their web of trust. The commitment is reciprocal. See [ADR 005](../decisions/005-storage-pact-layer.md).
+Every user targets **20 active** pacts (floor 12) with peers in their web of trust, storing each other's recent data. The commitment is reciprocal. See [ADR 005](../decisions/005-storage-pact-layer.md) and [ADR 016](../decisions/016-target-based-pact-formation.md).
 
 Reciprocal pacts require WoT membership. Two exceptions: bootstrap pacts (triggered by follow) and guardian pacts (volunteered by an established user). See [Glossary](../glossary.md).
 
@@ -26,19 +26,20 @@ Reciprocal pacts require WoT membership. Two exceptions: bootstrap pacts (trigge
 3. User selects partners — both exchange private kind 10053 pact events
 4. Both begin storing each other's events from the current checkpoint forward
 
-### Volume balancing
+### Capped asymmetric storage
 
-Peers are matched by data volume (+/- 30% tolerance) so the storage commitment is symmetric. If a partner's volume drifts beyond tolerance:
+Pacts are **not** volume-matched. Each partner simply stores whatever the other produces, up to a per-partner cap (~10 MB/month/partner). There is no ±tolerance, no drift measurement, and no drift-triggered renegotiation — a light poster and a heavy poster can pact without metering each other's output. This readmits the lurker majority who post little but store reliably. See [ADR 013](../decisions/013-capped-asymmetric-pacts.md).
 
-1. Protocol flags the pairing as unbalanced
-2. Client waits `random(0, 48h)` before broadcasting (jittered delay prevents renegotiation storms when many users detect the same peer failure simultaneously). During the delay, standby pacts provide immediate failover. See [ADR 008](../decisions/008-protocol-hardening.md).
-3. User broadcasts kind 10055 for a replacement
-4. Negotiates new pact, migrates data
-5. Closes old pact only after new one is confirmed
+A partner is only replaced when it fails reliably (see [Data Availability Verification](#data-availability-verification)), not when volumes diverge. When replacement is needed:
+
+1. Client waits `random(0, 48h)` before broadcasting (jittered delay prevents renegotiation storms when many users detect the same peer failure simultaneously). See [ADR 008](../decisions/008-protocol-hardening.md).
+2. User broadcasts kind 10055 for a replacement
+3. Negotiates new pact, migrates data
+4. Closes old pact only after new one is confirmed
 
 ### Data scope
 
-For **Light node** pact partners, each pact covers events from the **latest checkpoint** onward — roughly a monthly window. Old data ages out of their pact obligations. **Full node** pact partners store complete event history for their peers. In both cases, the user's own devices hold full history, and archivists can opt into deeper storage via archival pacts.
+For **Light node** pact partners, each pact covers events from the **latest checkpoint** onward — roughly a monthly window. Old data ages out of their pact obligations. **Full node** pact partners store complete event history for their peers. In both cases, the user's own devices hold full history, and users running always-on nodes retain deeper history.
 
 *Keepers* (Full node pact partners) maintain 95% uptime. *Witnesses* (Light node pact partners) maintain 60% uptime in Phase 1 (browser extension/web) and 30% in Phase 2 (mobile). The 30% figure assumes active app usage. Mobile OS constraints (iOS BGAppRefreshTask, Android Doze) limit true background uptime to 0.3-5% depending on OS version and user behavior. See [Glossary](../glossary.md).
 
@@ -69,43 +70,28 @@ An established user (*Guardian*) can volunteer to store data for one untrusted n
 | 5+ pacts (Hybrid) | 5+ | Guardian expires |
 | 10+ pacts | 10+ | Bootstrap expires |
 
-See [ADR 006](../decisions/006-storage-pact-risk-mitigations.md) and the [protocol paper](../papers/gossip-storage-retrieval.md) §2.4, §4.7.
+See [ADR 006](../decisions/006-storage-pact-risk-mitigations.md) and the [protocol paper](../papers/gossip-storage-retrieval.md) §2.4, §5.7.
 
-### Archival pacts
+## Data Availability Verification
 
-Standard pacts cover ~monthly windows. For long-term persistence, users can form archival pacts:
-
-- Cover full history or a specified deep range
-- Lower challenge frequency (weekly instead of daily)
-- For power users, archivists, and users running always-on nodes
-- Not mandatory — users without archival pacts are advised to run a persistent node
-
-### Standby pacts
-
-Maintain 3 extra pacts in standby mode to eliminate rebalancing delays:
-
-- Standby peers receive events but aren't challenged or expected to serve
-- When an active pact drops, promote a standby immediately — no discovery delay
-- Backfill standby pool in the background
-
-## Proof of Storage
-
-Challenge-response protocol via kind 10054. Two challenge modes. See [ADR 006](../decisions/006-storage-pact-risk-mitigations.md).
+Challenge-response protocol via kind 10054. This verifies that a partner can **make the data accessible on demand** — it does not prove the bytes are stored locally rather than fetched from elsewhere. Three challenge modes. See [ADR 006](../decisions/006-storage-pact-risk-mitigations.md) and [ADR 018](../decisions/018-honest-security-and-relay-framing.md).
 
 **Hash challenge:** Alice sends Bob "hash events [47..53] with this nonce." Bob computes hash from local copy. Proves possession.
 
 **Serve challenge:** Alice sends Bob "give me the full event at position 47." Measures response latency. Consistently slow responses suggest the peer is fetching remotely. Only used when both sides have direct, persistent connections (both 90%+ uptime). See [Pact Communication Matrix](#pact-communication-matrix).
 
+**Merkle-proof challenge:** For a cheap availability spot-check, the challenger names **N = 5** random event positions and the partner returns those events plus their Merkle authentication paths, verified against the Merkle root committed in the author's most recent checkpoint (kind 10051). This proves the partner can produce specific events on demand without transferring the whole window. See [ADR 018](../decisions/018-honest-security-and-relay-framing.md).
+
 **Completeness verification:** The checkpoint (kind 10051) includes a Merkle root of all events in the current window. Requesters compute the Merkle root from received events and compare against the checkpoint. Mismatch = events are missing. Light nodes additionally cross-verify the per-event hash chain for the most recent M events (default: 20) from each device — this catches checkpoint delegate censorship where a delegate omits sibling device events. See [ADR 008](../decisions/008-protocol-hardening.md).
 
-**Reliability scoring:** Clients track a rolling 30-day reliability score per peer:
+**Reliability scoring:** Clients track a **presence-aware** reliability score per peer over a rolling **14-day** window: score = passes ÷ challenges issued while the partner was observed online. This rescues intermittent-but-honest partners (e.g. a 30%-uptime *Witness*) from scoring as defectors. The four bands and their thresholds are defined normatively in [pact-state-machine.md](../protocol/pact-state-machine.md); see [ADR 014](../decisions/014-presence-aware-reliability.md).
 
 | Score | Status | Action |
 |-------|--------|--------|
-| 90%+ | Healthy | No action |
-| 70–90% | Degraded | Increase challenge frequency |
-| 50–70% | Unreliable | Begin replacement |
-| < 50% | Failed | Drop immediately |
+| ≥ 90% | Healthy | No action |
+| 70–90% | Degraded | Increase challenge frequency; begin seeking a replacement |
+| 50–70% | Unreliable | Actively replacing |
+| < 50% | Failed | Drop after failure sustained ≥ 14 days |
 
 **Age-biased challenge distribution:** 50% of challenges target events from the oldest third of the stored range, 30% from the middle third, 20% from the newest third. This catches selective deletion of old data — a strategy where a peer keeps recent events (which are most frequently requested) while quietly discarding older events to save storage. Without age-biased distribution, a peer could maintain a >90% reliability score indefinitely by storing only the newest data. The bias ensures that old-data deletion degrades the reliability score at a rate proportional to the deletion.
 
@@ -131,7 +117,7 @@ Network partitions (country-level shutdowns, WoT community splits, relay outages
 
 **During partition:**
 - **Suspend reliability scoring** for pact partners in the suspected partition. Do not degrade their scores for challenge failures caused by connectivity loss.
-- **Do not initiate pact replacement** for partition-affected peers. Standby pacts provide availability during the partition.
+- **Do not initiate pact replacement** for partition-affected peers.
 - **Continue operating** with remaining reachable pact partners and relay fallback.
 - **Log partition events** (timestamps, affected peers) for post-partition reconciliation.
 
@@ -148,26 +134,29 @@ Network partitions (country-level shutdowns, WoT community splits, relay outages
 
 When the coverage score drops below 3 or the Keeper ratio drops below 15%, the client prioritizes pact replacement or new pact formation to fill the gap — selecting partners whose uptime profile fills the identified coverage holes.
 
+**Client monitoring surface:** at minimum the client exposes a pact list (partners, roles, per-peer reliability) and one aggregate health number (the coverage score). Fuller diagnostics and dashboards are deferred — see [docs/future/monitoring-diagnostics.md](../future/monitoring-diagnostics.md).
+
 **Bounded timestamps:** Clients, relays, and storage peers reject events with `created_at` more than 15 minutes in the future. Events backdated more than 1 hour from the last known event from the same device are flagged. For replaceable event merge tiebreakers, timestamps within 60 seconds use lexicographic ordering of event ID (deterministic, non-gameable) instead of later-timestamp-wins.
 
 ## Event Retrieval
 
 See [Data Flow](data-flow.md) for the full flow diagrams.
 
-**Delivery paths (priority order):**
-0. **Tier 0 — BLE mesh** — nearby devices serve events via Bluetooth. No internet required. Interoperable with [bitchat](https://github.com/permissionlesstech/bitchat). See [ADR 010](../decisions/010-bitchat-integration.md).
-1. **Tier 1 — Cached endpoints** — follower has storage peer endpoints cached from kind 10059. Direct connection, zero broadcast overhead.
-2. **Tier 2 — Gossip** — send kind 10057 to directly connected peers. Each peer forwards if they can't respond (TTL=3, reaches ~8,000 nodes in a 20-peer network).
-3. **Tier 3 — Storage peers via DVM** — traditional kind 10057 broadcast through relay. Relay-dependent fallback.
-4. **Tier 4 — Relays** — traditional relay query as last resort.
+**Three-tier retrieval (priority order):** See [ADR 017](../decisions/017-three-tier-retrieval.md).
+
+1. **Tier 1 — Local** — the requester's own pact storage and read-cache. Zero network cost when the data is already held.
+2. **Tier 2 — Partner query** — a direct, NIP-44-encrypted request (kind 10057, over iroh addressing) to the author's pact partners. iroh resolves the partner by pubkey.
+3. **Tier 3 — Relay** — traditional relay query as fallback.
+
+Gossip (WoT-bounded forwarding of kind 10057) is an **optional censorship-resistance extension**, not a required retrieval tier — see the deferred [privacy-model / gossip](../future/README.md) exploration. BLE mesh is deferred (see [ADR 011](../decisions/011-iroh-transport-integration.md)).
 
 All paths produce self-authenticating events (signed by author's keys). Source doesn't matter — signatures prove authenticity.
 
-**Content discovery beyond the WoT:** Content from authors outside the 2-hop WoT is discoverable through relay queries (Tier 4). Clients can subscribe to hashtag-filtered feeds from relays, which serve as curated discovery endpoints — relay operators select which content to index and surface. Standardized relay discovery APIs (compatible with NIP-11) enable clients to find relays serving specific topics or communities. This is intentionally relay-dependent: the WoT boundary provides spam resistance and storage efficiency for the pact layer, while relays serve the orthogonal function of broad content discovery.
+**Content discovery beyond the WoT:** Content from authors outside the 2-hop WoT is discoverable through relay queries (Tier 3). Clients can subscribe to hashtag-filtered feeds from relays, which serve as curated discovery endpoints — relay operators select which content to index and surface. Standardized relay discovery APIs (compatible with NIP-11) enable clients to find relays serving specific topics or communities. This is intentionally relay-dependent: the WoT boundary provides spam resistance and storage efficiency for the pact layer, while relays serve the orthogonal function of broad content discovery.
 
-### Gossip Hardening
+### Gossip Hardening (optional extension)
 
-Gossip forwarding (kind 10055, 10057) is hardened against amplification attacks. All hardening rules are enforced **client-side** — no relay modifications needed. See [ADR 008](../decisions/008-protocol-hardening.md).
+When the optional gossip extension is enabled, gossip forwarding (kind 10055, 10057) is hardened against amplification attacks. All hardening rules are enforced **client-side** — no relay modifications needed. See [ADR 008](../decisions/008-protocol-hardening.md).
 
 **Per-hop rate limiting:** Each client enforces a maximum request rate per source pubkey:
 - Kind 10055 (pact request): 10 req/s per source
@@ -184,17 +173,16 @@ Gossip forwarding (kind 10055, 10057) is hardened against amplification attacks.
 
 - **Pacts are private** — kind 10053 exchanged directly, never published
 - **Topology is hidden** — no public list of who stores whose data
-- **Endpoint hints are gift-wrapped** — kind 10059 wrapped in NIP-59, relay stores opaque blob, only intended follower decrypts
 - **Retrieval is per-request** — storage peers reveal themselves only to individual requesters via kind 10058
 - **Peers can filter** — respond only to WoT members, or not at all
-- **Pseudonymous data requests via rotating request tokens** — kind 10057 uses a rotating request token `H(target_pubkey || YYYY-MM-DD)` instead of raw pubkey — computed as H(target_pubkey || YYYY-MM-DD), a daily-rotating lookup key that prevents casual cross-day linkage but is reversible by any party knowing the target's public key. Not a formal cryptographic blinding scheme. Storage peers match against both today's and yesterday's date to handle clock skew at day boundaries (dual-day token matching). See [ADR 008](../decisions/008-protocol-hardening.md).
+- **Encrypted direct data requests** — a kind 10057 request is NIP-44-encrypted to a chosen storage peer and routed by pubkey via iroh. Reader privacy relative to vanilla Nostr comes from **where** the request metadata flows — to WoT pact partners rather than arbitrary relay operators — not from requester anonymity: requests are signed and routed by pubkey. See [ADR 017](../decisions/017-three-tier-retrieval.md) and [ADR 018](../decisions/018-honest-security-and-relay-framing.md).
 - **DM integrity** — NIP-44 uses AEAD (authenticated encryption). Storage peers hold encrypted DM blobs but cannot serve corrupted ciphertext — tampered ciphertext fails decryption with an authentication error. The existing challenge-response proves possession; AEAD proves integrity.
 
 ## Peer Selection
 
 Client-side rules for choosing storage peers. See [ADR 006](../decisions/006-storage-pact-risk-mitigations.md).
 
-**WoT cluster diversity:** Maximum 3 peers from any single social cluster. At least 4 distinct clusters across 20 peers. Prevents eclipse attacks where an attacker becomes a majority of your storage peers.
+**WoT cluster diversity:** Maximum 3 peers from any single social cluster — which forces at least 7 distinct clusters across a 20-peer set. Prevents eclipse attacks where an attacker becomes a majority of your storage peers.
 
 **Geographic diversity:** Target 3+ timezone bands. Never more than 50% of peers in the same ±3 hour band. Protects against correlated regional failures.
 
@@ -204,15 +192,15 @@ Clients compute a **pact set coverage score**: for each hour of the day, count h
 
 This catches a failure mode that geographic diversity alone misses: peers in adjacent timezones (technically satisfying the "3+ bands" rule) but with 80%+ uptime overlap due to similar work schedules.
 
-**Functional diversity:** Require a minimum of 3 Keepers (full nodes, 90%+ uptime) among active pact partners. The remaining pacts can be Witnesses (light nodes). A pact set with zero Keepers has no always-on storage — all data is unavailable during overnight hours when Witnesses sleep. Scale the minimum Keeper count with total pact count: 3 for 10 pacts, 5 for 20 pacts, 8 for 30+ pacts.
+**Functional diversity:** Require a minimum Keeper ratio of **≥ 15%** of active pacts (≈ 3 of 20). Keepers are full nodes (90%+ uptime); the remaining pacts can be Witnesses (light nodes). A pact set with zero Keepers has no always-on storage — all data is unavailable during overnight hours when Witnesses sleep.
 
 **Follow-age requirement:** Pact partners must have a mutual follow relationship of at least 30 days. This prevents gaming WoT edges instrumentally for pact access — an attacker cannot create a fresh identity, follow a target, and immediately form a reciprocal pact. The 30-day window ensures that pact relationships reflect genuine social connections rather than strategic positioning. Bootstrap pacts (which are one-sided and temporary) are exempt from this requirement to avoid blocking new user onboarding.
 
 **Peer reputation:** Weight offers by identity age, challenge success rate, and active pact count. Identities < 30 days old are limited to bootstrap pacts.
 
-**Equilibrium-seeking formation:** The protocol does not prescribe a fixed pact count. Instead, it forms pacts until a measurable comfort condition is satisfied: ∀h ∈ {0..23}: P(X_h < 3) ≤ 0.001, where X_h is the Poisson-binomial-distributed count of online partners at hour h. The equilibrium count emerges from the user's specific partner mix (all Keepers ≈ 7, mixed ≈ 14–20, all Witnesses ≈ 33–40). A PACT_FLOOR of 12 ensures Keepers accept beyond their own comfort, providing availability for Witnesses. PACT_CEILING is 40. See [Equilibrium Pact Formation](../design/equilibrium-pact-formation.md) for the full model.
+**Target-based formation:** Clients form pacts toward a **target of 20 active** pacts, with a **floor of 12**, using simple replacement plus the diversity heuristics above. There is no equilibrium-seeking comfort math to solve — 20 is the modeling constant used throughout the analysis and simulations. Keepers carry excess capacity beyond their own needs, which is what lets Witnesses reach the floor. See [ADR 016](../decisions/016-target-based-pact-formation.md).
 
-**Offer filtering:** Drop offers from non-WoT pubkeys, identities < 30 days old, or volume mismatch > 50%.
+**Offer filtering:** Drop offers from non-WoT pubkeys or identities < 30 days old.
 
 ## Platform Focus
 
@@ -283,23 +271,23 @@ No negotiation protocol. Each client reads its partner's Kind 10050 and autonomo
 4. The pair mode = min(own classification, partner classification)
 5. Select challenge type, response window, and delivery mode from the matrix above
 
-This runs on every Kind 10050 update (at most daily). If a partner's desktop goes offline and their uptime drops from 91% to 40%, the pair mode automatically shifts from Full↔Full to Active↔Intermittent — longer challenge windows, relay-mediated delivery. No renegotiation needed.
+This runs on every Kind 10050 update (at most daily). If a partner's desktop goes offline and their uptime drops from 91% to 40%, the partner reclassifies from Full to Intermittent; by the min() rule the pair mode shifts from Full↔Full to Full↔Intermittent — longer challenge windows, relay-mediated delivery. No renegotiation needed.
 
 ## Relay Role
 
-Standard Nostr relays work with Gozzip without any code changes. All protocol intelligence (gossip forwarding, rotating request token matching, WoT filtering, device resolution) lives in clients. The relay stores events and serves subscriptions — exactly what it already does.
+Standard Nostr relays work with Gozzip without any code changes. All protocol intelligence (WoT filtering, device resolution, encrypted partner queries, optional gossip forwarding) lives in clients. The relay stores events and serves subscriptions — exactly what it already does.
 
 - **No relay modifications required** — every Gozzip event kind is a valid Nostr event
 - **Mobile "mailbox" is standard relay storage** — phones query `since: <last_timestamp>` on reconnect
 - **NIP-65 relay lists** enable discovery and failover — unreliable relays get dropped
-- **NIP-59 gift wrapping** handles privacy for Kind 10059 endpoint hints — relay stores opaque blobs
+- **NIP-59 gift wrapping** handles DM metadata privacy — relay stores opaque blobs
 - Clients try storage peers and relays opportunistically
 - No single relay failure can make a user's data unavailable
 - Gradual migration — relays work alongside storage peers
 
 Relays serve as delivery infrastructure with reduced data custody. While the protocol progressively reduces relay dependence for data *storage* (events survive on pact partners), relays remain structurally important for: new user bootstrap, content discovery beyond the WoT, mobile-to-mobile pact communication (relay as mailbox), and push notification delivery. Optional relay optimizations (oracle resolution, checkpoint delta, gossip relay forwarding) can accelerate performance but are never required. See [Relay](../actors/relay.md).
 
-**Relay economics during transition:** The protocol reduces relay data custody revenue (fewer users depend on relays as their sole data store) while relays remain structurally necessary for delivery and discovery. A viable economic model for the transition: relay-as-Keeper integration, where relay operators run their relays as full Gozzip nodes that form pacts with users. In this model, the relay earns pact-aware gossip priority (wider content distribution) and Lightning payments (see [Incentive Model](../design/incentive-model.md)) while providing the high-uptime, always-on storage that the pact network benefits from. Relays that integrate as Keepers become first-class participants in the storage mesh rather than legacy infrastructure being displaced.
+**Relay economics during transition:** The protocol reduces relay data custody revenue (fewer users depend on relays as their sole data store) while relays remain structurally necessary for delivery and discovery. A viable economic model for the transition: relay-as-Keeper integration, where relay operators run their relays as full Gozzip nodes that form pacts with users. In this model, the relay earns pact-aware gossip priority (wider content distribution) and Lightning payments (see [Incentive Model](../design/incentives.md)) while providing the high-uptime, always-on storage that the pact network benefits from. Relays that integrate as Keepers become first-class participants in the storage mesh rather than legacy infrastructure being displaced.
 
 ## Three-Phase Adoption Model
 
@@ -354,15 +342,7 @@ Eviction strategy: LRU within TTL boundary, bounded by `read_cache_max_mb`. Pact
 
 ## Media Storage
 
-Media (images, video, audio) is handled separately from event pacts. Events contain content-addressed hash references (`media` tags) to media blobs stored externally — on CDNs, S3, IPFS, or self-hosted servers. The event itself remains ~1 KB regardless of how many media files it references.
-
-**Key separation:** Event pact obligations (kind 10053 with `type: standard`) cover events only. Media volume is excluded from event pact volume matching and challenges. This keeps pact obligations tractable — a user with 100 MB of events and 5 GB of media has a 100 MB event pact volume.
-
-**Optional media pacts:** Users who want peer-to-peer media redundancy can form media pacts (kind 10053 with `type: media`) — separate volume accounting, separate challenges (random byte-range instead of full-file hash), and a configurable retention window (default: 90 days). Media pacts are restricted to Keepers (full nodes, 90%+ uptime). Mobile devices and browser extensions are never obligated to store or serve media for pact partners.
-
-**Integrity:** Clients verify `SHA-256(downloaded_bytes) == hash_from_media_tag` on every fetch. Source does not matter — a CDN, IPFS node, or pact partner serving the correct bytes is equally trusted.
-
-See [Media Layer](../design/media-layer.md) for the full design.
+Media (images, video, audio) is handled separately from event pacts. Events carry content-addressed hash references (`media` tags) to blobs stored externally — on CDNs, S3, IPFS, or self-hosted servers — so the event itself stays ~1 KB regardless of how many files it references. Clients verify `SHA-256(downloaded_bytes) == hash_from_media_tag` on every fetch; source does not matter, since correct bytes are self-verifying. Peer-to-peer **media pacts** (a separate media-redundancy layer) are deferred — see [docs/future/media-layer.md](../future/media-layer.md).
 
 ## Incentive Model
 
