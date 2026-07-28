@@ -107,7 +107,7 @@ The paper makes three contributions:
 \begin{enumerate}
   \item A \textbf{storage pact mechanism} with capped asymmetric reciprocity, challenge-response availability verification, and popularity-scaled redundancy (Section~\ref{sec:pacts}).
   \item A \textbf{three-tier retrieval protocol} with cascading delivery paths---local pact storage, direct partner query, and relay fallback (Section~\ref{sec:retrieval}), with WoT gossip as an optional censorship-resistance extension.
-  \item An \textbf{iroh transport architecture} that gives each node direct QUIC connectivity with Ed25519 endpoint identity and relay-assisted hole punching, extensible to mesh radio, Bluetooth, and Tor multipath (Section~\ref{sec:fips}).
+  \item An \textbf{iroh transport architecture} that gives each node direct QUIC connectivity with Ed25519 endpoint identity and relay-assisted hole punching, extensible to mesh radio, Bluetooth, and Tor multipath (Section~\ref{sec:iroh}).
 \end{enumerate}
 
 % ============================================================
@@ -516,13 +516,13 @@ When a node needs to retrieve events from a followed author, the protocol attemp
 
 \textbf{Tier~1---Local (instant):} The node already stores the author's events locally, either through an active pact or from a previous read cache. Cost: zero network traffic. Latency: zero. This tier is expected to serve the large majority of reads for authors within a mature pact set.
 
-\textbf{Tier~2---Partner query (kind 10057):} The node sends a NIP-44-encrypted direct data request to one of the author's known pact partners, addressed over iroh (Section~\ref{sec:fips}). The request is signed and routed by pubkey; the partner responds with a data offer (kind 10058). Latency: ${\sim}80$ms + jitter.
+\textbf{Tier~2---Partner query (kind 10057):} The node sends a NIP-44-encrypted direct data request to one of the author's known pact partners, addressed over iroh (Section~\ref{sec:iroh}). The request is signed and routed by pubkey; the partner responds with a data offer (kind 10058). Latency: ${\sim}80$ms + jitter.
 
 \textbf{Tier~3---Relay fallback:} After a configurable timeout (default 30s), the node falls back to a traditional relay query. Latency: ${\sim}200$ms base + 50ms jitter. Relay use is reduced by the first two tiers but not eliminated; it remains a permanent component of the delivery architecture, not merely a path of last resort.
 
 Each successive tier is attempted only when the previous tier fails or times out, creating a natural cost gradient that keeps most traffic within the social graph.
 
-\textbf{Optional extension---WoT gossip:} As a censorship-resistance extension (deferred to a future protocol version), a node may instead broadcast the Tier~2 request across its 2-hop WoT with TTL$=$3, letting any peer that holds the data respond. This trades the direct partner query's efficiency for resistance to targeted blocking of specific partners. It is not a required tier. A \textbf{BLE proximity tier} (offline, device-to-device) is likewise deferred; see Section~\ref{sec:fips}.
+\textbf{Optional extension---WoT gossip:} As a censorship-resistance extension (deferred to a future protocol version), a node may instead broadcast the Tier~2 request across its 2-hop WoT with TTL$=$3, letting any peer that holds the data respond. This trades the direct partner query's efficiency for resistance to targeted blocking of specific partners. It is not a required tier. A \textbf{BLE proximity tier} (offline, device-to-device) is likewise deferred; see Section~\ref{sec:iroh}.
 
 \subsection{Read Cache and Cascading Replication}
 
@@ -629,7 +629,7 @@ This reduces several categories of complexity:
   \item \textbf{Key exposure risk}---signing stays on the user's device.
 \end{itemize}
 
-Relay-mediated channels do not replace the retrieval cascade (Section~\ref{sec:retrieval}) but provide a reliable encrypted communication substrate for all peer-to-peer protocol messages. They complement the iroh transport (Section~\ref{sec:fips}) for internet-based connectivity, offering an additional path that works through the existing Nostr relay network when direct connections are unavailable.
+Relay-mediated channels do not replace the retrieval cascade (Section~\ref{sec:retrieval}) but provide a reliable encrypted communication substrate for all peer-to-peer protocol messages. They complement the iroh transport (Section~\ref{sec:iroh}) for internet-based connectivity, offering an additional path that works through the existing Nostr relay network when direct connections are unavailable.
 
 % ============================================================
 \section{Flow Control}
@@ -689,13 +689,11 @@ The push token and filter preferences are NIP-44 encrypted to the notification r
 
 % ============================================================
 \section{iroh Transport: Direct Node-to-Node Connectivity}
-\label{sec:fips}
-
-\emph{(An earlier revision of this paper proposed integrating FIPS, the Free Internetworking Peering System mesh project, for transport independence. That direction was superseded: FIPS is a pre-production research mesh, whereas iroh is a maintained, production QUIC stack that provides equivalent transport independence today. See ADR~011.)}
+\label{sec:iroh}
 
 \subsection{Motivation}
 
-The protocol as described needs a way for two nodes to exchange pact data, challenges, and retrieval requests directly, without routing every byte through a relay. Relay-mediated channels (Section~\ref{sec:retrieval}) cover the case where peers cannot reach each other, but a maintained peer-to-peer transport is what lets the retrieval cascade keep traffic inside the social graph. The protocol builds on \textbf{iroh}~\cite{fips}, a production peer-to-peer library that provides authenticated, encrypted, direct connections between nodes.
+The protocol as described needs a way for two nodes to exchange pact data, challenges, and retrieval requests directly, without routing every byte through a relay. Relay-mediated channels (Section~\ref{sec:retrieval}) cover the case where peers cannot reach each other, but a maintained peer-to-peer transport is what lets the retrieval cascade keep traffic inside the social graph. The protocol builds on \textbf{iroh}~\cite{iroh}, a production peer-to-peer library that provides authenticated, encrypted, direct connections between nodes.
 
 \subsection{iroh Architecture}
 
@@ -787,7 +785,7 @@ The challenge-response mechanism draws from proof-of-storage work: Filecoin's Pr
 
 \subsection{iroh and Peer-to-Peer Transport}
 
-iroh~\cite{fips} provides the maintained peer-to-peer transport layer our protocol builds on: QUIC connections addressed by Ed25519 endpoint identity, relay-assisted hole punching, and connection migration across networks. Its HyParView/PlumTree membership-and-broadcast layer is complementary to our WoT-based routing: iroh handles physical reachability and epidemic dissemination, while the WoT layer decides social relevance and which peers to query. An earlier revision targeted FIPS (a pre-production research mesh) for this role; iroh supersedes it with an equivalent, production-ready stack (ADR~011).
+iroh~\cite{iroh} provides the maintained peer-to-peer transport layer our protocol builds on: QUIC connections addressed by Ed25519 endpoint identity, relay-assisted hole punching, and connection migration across networks. Its HyParView/PlumTree membership-and-broadcast layer is complementary to our WoT-based routing: iroh handles physical reachability and epidemic dissemination, while the WoT layer decides social relevance and which peers to query.
 
 \subsection{BitChat and BLE Mesh Messaging}
 
@@ -1004,7 +1002,7 @@ This is where the protocol's design goals---high instant delivery, near-total re
 \begin{itemize}
   \item \textbf{BLE proximity (deferred)} would enable two phones in the same room to share events directly, device-to-device, without internet. No iroh BLE transport exists yet, so this is a future extension (see ADR~011), not part of protocol v1.
   \item \textbf{Store-and-forward queuing:} Events created offline are queued locally (up to 1,000 events or 50~MB) and drain automatically when any transport becomes available.
-  \item \textbf{iroh multipath:} The protocol's peer messages already run over iroh (Section~\ref{sec:fips}). Extending iroh endpoints to be reachable over Tor circuits or low-bandwidth radio links is a future direction that reuses the same Ed25519 endpoint identity---the message layer is transport-agnostic and would operate identically whether the underlying medium is fiber optic or a radio modem.
+  \item \textbf{iroh multipath:} The protocol's peer messages already run over iroh (Section~\ref{sec:iroh}). Extending iroh endpoints to be reachable over Tor circuits or low-bandwidth radio links is a future direction that reuses the same Ed25519 endpoint identity---the message layer is transport-agnostic and would operate identically whether the underlying medium is fiber optic or a radio modem.
   \item \textbf{Geohash discovery with ephemeral keys:} Nearby users discover each other using geohash-tagged ephemeral subkeys that are not linked to their identity, enabling proximity-based exchange without surveillance.
 \end{itemize}
 
@@ -1096,7 +1094,7 @@ This protocol builds on the work of several open-source projects and their contr
 
 \begin{itemize}
   \item \textbf{BitChat}~\cite{bitchat} --- The BLE mesh transport layer (Tier 0) adopts BitChat's Noise Protocol session management, compact binary framing, and Bloom filter gossip deduplication rather than reimplementing these primitives. BitChat's design for encrypted peer-to-peer messaging over constrained BLE links directly informed the protocol's offline-first capabilities.
-  \item \textbf{iroh}~\cite{fips} --- The maintained peer-to-peer QUIC transport the protocol builds on: direct, identity-addressed connections with relay-assisted hole punching and connection migration, extensible to future mesh/radio/Tor multipath. (An earlier revision targeted the FIPS research mesh for this role; iroh supersedes it, per ADR~011.)
+  \item \textbf{iroh}~\cite{iroh} --- The maintained peer-to-peer QUIC transport the protocol builds on: direct, identity-addressed connections with relay-assisted hole punching and connection migration, extensible to future mesh/radio/Tor multipath.
   \item \textbf{Nostr}~\cite{nostr} --- The event model, relay architecture, and NIP ecosystem provide the compatibility layer that makes incremental adoption possible. The protocol's events are valid Nostr events, and existing relays require no modification.
   \item \textbf{Secure Scuttlebutt}~\cite{ssb} --- The insight that gossip-based social networking with local-first storage is viable, and the identification of the ``pub server'' problem that this protocol addresses through bilateral storage pacts.
 \end{itemize}
@@ -1129,7 +1127,7 @@ V.~Jacobson.
 \newblock ``Congestion Avoidance and Control.''
 \newblock ACM SIGCOMM, 1988.
 
-\bibitem{fips}
+\bibitem{iroh}
 number0 (n0).
 \newblock ``iroh: peer-to-peer QUIC connections that just work.''
 \newblock \url{https://github.com/n0-computer/iroh}

@@ -5,9 +5,7 @@
 
 ## Context
 
-Gozzip's simulator exercises the protocol at 5000 nodes but has no real networking. The protocol paper (§8) describes transport independence via **FIPS — the Free Internetworking Peering System** (github.com/jmcorgan/fips), a Nostr-keyed mesh transport project. FIPS-the-mesh is early-stage and unmaintained; building on it means owning an experimental transport stack. iroh (v0.97.0) instead provides a maintained, production-grade peer-to-peer QUIC layer with Ed25519 identity, NAT traversal, and iroh-gossip (epidemic broadcast trees via HyParView + PlumTree) with topic-based pub/sub — the same transport-independence goal with a stack we do not have to maintain. This is a natural fit for gozzip's WoT-filtered gossip model.
-
-> **Note (naming):** "FIPS" here is the *Free Internetworking Peering System*, not the U.S. *Federal Information Processing Standards*. The decision to adopt iroh rests on transport maturity, **not** on crypto-compliance grounds — both Ed25519 and secp256k1 are non-FIPS-140, and that is irrelevant to a p2p social protocol.
+Gozzip's simulator exercises the protocol at 5000 nodes but has no real networking. The protocol needs a maintained, production-grade peer-to-peer transport. iroh (v0.97.0) provides exactly that: a QUIC layer with Ed25519 endpoint identity, NAT traversal, and iroh-gossip (epidemic broadcast trees via HyParView + PlumTree) with topic-based pub/sub — a natural fit for gozzip's WoT-filtered gossip model, on a stack we do not have to maintain ourselves.
 
 ## Decision
 
@@ -15,9 +13,9 @@ Gozzip's simulator exercises the protocol at 5000 nodes but has no real networki
 
 Extract protocol logic into gozzip-types shared crate. Simulator stays untouched for deterministic validation. New gozzip-node binary implements real networking via iroh. One protocol implementation, two transports.
 
-### 2. Drop FIPS (the Free Internetworking Peering System)
+### 2. iroh as the Transport Layer
 
-Replace the paper's FIPS mesh transport with iroh. FIPS-the-mesh is pre-production and unmaintained; iroh delivers equivalent transport independence on a maintained QUIC stack. Ed25519 (iroh's identity) is battle-tested (Signal, Tor, SSH, WireGuard).
+Adopt iroh for all peer-to-peer connectivity. Ed25519 (iroh's endpoint identity) is battle-tested (Signal, Tor, SSH, WireGuard), and QUIC gives encrypted, authenticated, migration-capable connections out of the box.
 
 ### 3. iroh-gossip for Peer Discovery and Message Propagation
 
@@ -49,10 +47,6 @@ Two implementations of same protocol. Maintenance nightmare. Protocol changes mu
 
 5000 iroh endpoints on one machine infeasible. Loses deterministic simulation. Tests become flaky.
 
-### Building on FIPS-the-mesh directly
-
-Would mean owning an experimental, unmaintained transport stack. iroh provides the same transport independence with production QUIC, NAT traversal, and a real gossip implementation. (Note: U.S. FIPS-140 crypto *compliance* was never a goal — both curves are non-FIPS-140, which is irrelevant here.)
-
 ### Derived Ed25519 Key from secp256k1 Root
 
 Expands blast radius of root key compromise. Already identified as critical weakness in review-cryptography.md.
@@ -77,6 +71,5 @@ Expands blast radius of root key compromise. Already identified as critical weak
 - IP address exposure to all direct connection peers (including potential sybils)
 
 **Neutral:**
-- FIPS-the-mesh dropped — no practical impact, eliminates dead-end engineering on an unmaintained transport
 - BLE transport deferred — iroh's custom transport API is experimental, only Tor works. Design for future addition via QUIC multipath.
 - bitchat remains inspiration for BLE mesh (ADR 010) — no code dependency on iroh

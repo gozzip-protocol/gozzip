@@ -531,8 +531,6 @@ When a user's activity changes and pact renegotiation is needed, the protocol in
 
 ## 8. iroh Transport: Direct Node-to-Node Connectivity
 
-*(An earlier revision of this paper proposed integrating FIPS, the Free Internetworking Peering System mesh project, for transport independence. That direction was superseded: FIPS is a pre-production research mesh, whereas iroh is a maintained, production QUIC stack that provides equivalent transport independence today. See ADR 011.)*
-
 ### 8.1 Motivation
 
 The protocol as described needs a way for two nodes to exchange pact data, challenges, and retrieval requests directly, without routing every byte through a relay. Relay-mediated channels (Section 6.7) cover the case where peers cannot reach each other, but a maintained peer-to-peer transport is what lets the retrieval cascade keep traffic inside the social graph. The protocol builds on **iroh**, a production peer-to-peer library that provides authenticated, encrypted, direct connections between nodes.
@@ -606,7 +604,7 @@ The challenge-response mechanism draws from established proof-of-storage work: F
 
 ### 9.4 iroh and Peer-to-Peer Transport
 
-iroh [6] provides the maintained peer-to-peer transport layer our protocol builds on: QUIC connections addressed by Ed25519 endpoint identity, relay-assisted hole punching, and connection migration across networks. Its HyParView/PlumTree membership-and-broadcast layer is complementary to our WoT-based routing: iroh handles physical reachability and epidemic dissemination, while the WoT layer decides social relevance and which peers to query. An earlier revision targeted FIPS (a pre-production research mesh) for this role; iroh supersedes it with an equivalent, production-ready stack (ADR 011).
+iroh [6] provides the maintained peer-to-peer transport layer our protocol builds on: QUIC connections addressed by Ed25519 endpoint identity, relay-assisted hole punching, and connection migration across networks. Its HyParView/PlumTree membership-and-broadcast layer is complementary to our WoT-based routing: iroh handles physical reachability and epidemic dissemination, while the WoT layer decides social relevance and which peers to query.
 
 ### 9.5 Local-First Software
 

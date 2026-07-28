@@ -35,7 +35,7 @@ Media layer, protocol-versioning strategy, BitChat/BLE mesh, post-quantum roadma
 - The two dated `plans/` feed-model docs → archived under `docs/future/history/`; [`architecture/feed-model.md`](../architecture/feed-model.md) is the sole live telling.
 
 ### Consistency fixes
-The 2026-07 pass also resolved 34 documentation-integrity findings (kind-range drift, reliability-band contradictions, retrieval-tier renumbering, the FIPS/iroh confusion, orphaned docs, a karma economy left in the test plan) and 24 soundness findings; the mechanism changes are recorded in [ADR 013](013-capped-asymmetric-pacts.md)–[ADR 018](018-honest-security-and-relay-framing.md).
+The 2026-07 pass also resolved 34 documentation-integrity findings (kind-range drift, reliability-band contradictions, retrieval-tier renumbering, transport-documentation inconsistencies, orphaned docs, a karma economy left in the test plan) and 24 soundness findings; the mechanism changes are recorded in [ADR 013](013-capped-asymmetric-pacts.md)–[ADR 018](018-honest-security-and-relay-framing.md).
 
 ## Consequences
 

@@ -95,13 +95,9 @@ Large content — images, media, long-form text — exceeding gossip message lim
 
 Node discovery is layered: iroh DNS discovery is primary (nodes publish addressing to DNS, peers resolve it); Nostr relay bootstrap is secondary (query relays for kind-10070 bindings to find the NodeIds of known Nostr identities); a small hardcoded set of well-known nodes is the fallback for initial network entry. On top of this, NIP-05 gives DNS-based identity verification (`alice@example.com` → secp256k1 pubkey via `/.well-known/nostr.json`), and the kind-10070 binding then resolves that pubkey to an iroh NodeId. Nodes also periodically broadcast `Announce` messages on the discovery topic carrying their secp256k1 pubkey, NodeId, and optional NIP-05 identifier.
 
-## A note on "FIPS" — a naming collision
+## A note on cryptographic compliance
 
-**"FIPS" in the original whitepaper means the *Free Internetworking Peering System* — a bespoke mesh transport — not the NIST FIPS 140 cryptographic-validation standard.** The two share three letters and nothing else.
-
-The Free Internetworking Peering System is superseded by iroh because it was pre-production. iroh is a maintained, production-grade QUIC stack that delivers equivalent transport independence without Gozzip having to build and operate a mesh from scratch ([ADR 011](../decisions/011-iroh-transport-integration.md)). This is a transport-maturity decision.
-
-Separately, NIST FIPS 140 cryptographic validation is a non-goal: Gozzip deliberately uses the best cryptography for its threat model (Ed25519 is not FIPS-approved, secp256k1 is not a FIPS curve, `rustls` is not FIPS-validated) rather than conforming to a compliance framework that would require different primitives. The transport-maturity decision and the crypto-policy stance are independent.
+NIST FIPS 140 cryptographic validation is a non-goal: Gozzip deliberately uses the best cryptography for its threat model (Ed25519 and secp256k1 are not FIPS-140 curves, and `rustls` is not FIPS-validated) rather than conforming to a compliance framework that would require different primitives.
 
 ## Post-quantum readiness
 
